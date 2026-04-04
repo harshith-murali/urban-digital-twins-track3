@@ -1,0 +1,31 @@
+export const cityGraph = {
+  nodes: [
+    { id: "A", label: "MG Road",         lat: 12.9756, lng: 77.6099, load: 45, isBlocked: false },
+    { id: "B", label: "Silk Board",      lat: 12.9177, lng: 77.6228, load: 78, isBlocked: false },
+    { id: "C", label: "Koramangala",     lat: 12.9352, lng: 77.6245, load: 60, isBlocked: false },
+    { id: "D", label: "Whitefield",      lat: 12.9698, lng: 77.7499, load: 30, isBlocked: false },
+    { id: "E", label: "Indiranagar",     lat: 12.9784, lng: 77.6408, load: 85, isBlocked: false },
+    { id: "F", label: "Hebbal",          lat: 13.0350, lng: 77.5970, load: 55, isBlocked: false },
+    { id: "G", label: "Electronic City", lat: 12.8399, lng: 77.6770, load: 70, isBlocked: false },
+    { id: "H", label: "Jayanagar",       lat: 12.9299, lng: 77.5824, load: 40, isBlocked: false },
+    { id: "I", label: "Yeshwanthpur",    lat: 13.0291, lng: 77.5507, load: 65, isBlocked: false },
+    { id: "J", label: "Marathahalli",    lat: 12.9591, lng: 77.6974, load: 50, isBlocked: false },
+  ],
+  edges: [
+    { from: "A", to: "B", weight: 8,  isBlocked: false },
+    { from: "A", to: "E", weight: 3,  isBlocked: false },
+    { from: "A", to: "F", weight: 10, isBlocked: false },
+    { from: "B", to: "C", weight: 4,  isBlocked: false },
+    { from: "B", to: "G", weight: 6,  isBlocked: false },
+    { from: "C", to: "H", weight: 5,  isBlocked: false },
+    { from: "C", to: "E", weight: 2,  isBlocked: false },
+    { from: "D", to: "E", weight: 7,  isBlocked: false },
+    { from: "D", to: "J", weight: 4,  isBlocked: false },
+    { from: "E", to: "J", weight: 5,  isBlocked: false },
+    { from: "F", to: "I", weight: 3,  isBlocked: false },
+    { from: "G", to: "J", weight: 4,  isBlocked: false },
+    { from: "H", to: "I", weight: 6,  isBlocked: false },
+    { from: "I", to: "F", weight: 2,  isBlocked: false },
+    { from: "J", to: "D", weight: 3,  isBlocked: false },
+  ]
+}
