@@ -1,79 +1,161 @@
-"use client"
-import { UserButton } from '@clerk/nextjs'
-import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+"use client";
+import { UserButton } from "@clerk/nextjs";
+import { Moon, Sun, Bell, X } from "lucide-react";
+import { PAGES, MODES } from "@/app/constants/modes.js";
 
-export default function Navbar({ mode, avgLoad, criticalCount }) {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+/**
+ * Top navigation bar.
+ * Handles: hamburger, logo, page tabs, clock, notifications, dark toggle, user avatar.
+ */
+export default function Navbar({
+  theme,
+  page, setPage,
+  mode, setMode,
+  dark, setDark,
+  time,
+  alerts,
+  drawerOpen, setDrawerOpen,
+  notifOpen, setNotifOpen,
+}) {
+  const { card, bdr, inputBg, sub, txt, fontBody, fontMono } = theme;
 
-  const getModeColor = () => {
-    if (mode === "traffic")  return "from-orange-500 to-red-500"
-    if (mode === "energy")   return "from-yellow-400 to-orange-500"
-    if (mode === "water")    return "from-blue-400 to-cyan-500"
-    if (mode === "disaster") return "from-red-500 to-rose-700"
-  }
+  const handlePageClick = (p) => {
+    setPage(p);
+    if (MODES.find((m) => m.id === p)) setMode(p);
+  };
 
   return (
-    <nav className="border-b border-gray-800 dark:bg-gray-950 bg-white px-6 py-3">
-      <div className="flex items-center justify-between">
+    <header
+      style={{
+        height: 52,
+        background: card,
+        borderBottom: `0.5px solid ${bdr}`,
+        display: "flex",
+        alignItems: "center",
+        padding: "0 16px",
+        gap: 12,
+        position: "relative",
+        zIndex: 20,
+        flexShrink: 0,
+      }}
+    >
+      {/* Hamburger */}
+      <button
+        id="menu-btn"
+        onClick={() => setDrawerOpen((v) => !v)}
+        style={{
+          width: 34, height: 34, borderRadius: 8,
+          border: `0.5px solid ${bdr}`, background: inputBg,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: 4.5, cursor: "pointer", flexShrink: 0,
+        }}
+      >
+        {drawerOpen ? (
+          <X size={14} style={{ color: sub }} />
+        ) : (
+          <>
+            <span style={{ display: "block", width: 14, height: 1.5, background: sub, borderRadius: 1 }} />
+            <span style={{ display: "block", width: 14, height: 1.5, background: sub, borderRadius: 1 }} />
+            <span style={{ display: "block", width: 14, height: 1.5, background: sub, borderRadius: 1 }} />
+          </>
+        )}
+      </button>
 
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getModeColor()} flex items-center justify-center text-sm font-bold text-white shadow-lg`}>
-            U
-          </div>
-          <div>
-            <h1 className="text-lg font-black dark:text-white text-gray-900 leading-none">
-              Urban<span className="text-red-500">Twins</span>
-            </h1>
-            <p className="text-xs dark:text-gray-500 text-gray-400">Smart City Digital Twin</p>
-          </div>
-        </div>
-
-        {/* Center — live status bar */}
-        <div className="hidden md:flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${avgLoad > 70 ? 'bg-red-500' : 'bg-green-500'}`} />
-            <span className="text-xs dark:text-gray-400 text-gray-500 font-medium">
-              System Load: <span className={`font-bold ${avgLoad > 70 ? 'text-red-400' : 'text-green-400'}`}>{avgLoad}%</span>
-            </span>
-          </div>
-          <div className="w-px h-4 dark:bg-gray-700 bg-gray-300" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs dark:text-gray-400 text-gray-500 font-medium">
-              Critical Zones: <span className={`font-bold ${criticalCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{criticalCount}</span>
-            </span>
-          </div>
-          <div className="w-px h-4 dark:bg-gray-700 bg-gray-300" />
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs text-green-400 font-medium">Live</span>
-          </div>
-        </div>
-
-        {/* Right — theme + user */}
-        <div className="flex items-center gap-3">
-          {/* Theme toggle */}
-          {mounted && (
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="w-9 h-9 rounded-lg dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 flex items-center justify-center transition-all"
-            >
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
-          )}
-
-          {/* Mode badge */}
-          <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${getModeColor()} text-white text-xs font-bold uppercase shadow`}>
-            {mode}
-          </div>
-
-          {/* Clerk user button */}
-          <UserButton afterSignOutUrl="/sign-in" />
+      {/* Logo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 15, fontWeight: 500, color: txt, fontFamily: fontBody }}>
+          Urban<span style={{ color: "#3B6D11" }}>Twins</span>
+        </span>
+        <div
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            fontSize: 11, fontWeight: 500, color: "#3B6D11",
+            background: theme.dark ? "rgba(59,109,17,0.15)" : "#EAF3DE",
+            padding: "3px 8px", borderRadius: 20,
+          }}
+        >
+          <div
+            style={{
+              width: 5, height: 5, borderRadius: "50%",
+              background: "#639922", animation: "pulse 2s infinite",
+            }}
+          />
+          Live
         </div>
       </div>
-    </nav>
-  )
+
+      {/* Page tabs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 8 }}>
+        {PAGES.map((p) => (
+          <button
+            key={p}
+            onClick={() => handlePageClick(p)}
+            style={{
+              fontSize: 12, padding: "5px 10px", borderRadius: 6, border: "none",
+              background: page === p ? (theme.dark ? "rgba(59,109,17,0.15)" : "#EAF3DE") : "none",
+              color: page === p ? (theme.dark ? "#97C459" : "#27500A") : sub,
+              fontWeight: page === p ? 500 : 400,
+              cursor: "pointer", fontFamily: fontBody,
+              transition: "all .12s", textTransform: "capitalize",
+            }}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      {/* Right controls */}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Clock */}
+        <span
+          style={{
+            fontSize: 11, fontFamily: fontMono, color: sub,
+            padding: "4px 8px", background: inputBg, borderRadius: 6,
+          }}
+        >
+          {time}
+        </span>
+
+        {/* Notification bell */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setNotifOpen((v) => !v)}
+            style={{
+              width: 30, height: 30, borderRadius: 6,
+              border: `0.5px solid ${bdr}`, background: inputBg,
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            }}
+          >
+            <Bell size={13} style={{ color: sub }} />
+            {alerts.length > 0 && (
+              <div
+                style={{
+                  position: "absolute", top: 4, right: 4,
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: "#E24B4A", border: `1.5px solid ${card}`,
+                }}
+              />
+            )}
+          </button>
+        </div>
+
+        {/* Dark mode toggle */}
+        <button
+          onClick={() => setDark(!dark)}
+          style={{
+            border: `0.5px solid ${bdr}`, background: inputBg, color: sub,
+            padding: "5px 10px", borderRadius: 6, fontSize: 12,
+            fontFamily: fontBody, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 5,
+          }}
+        >
+          {dark ? <Sun size={12} /> : <Moon size={12} />}
+          {dark ? "Light" : "Dark"}
+        </button>
+
+        <UserButton />
+      </div>
+    </header>
+  );
 }
