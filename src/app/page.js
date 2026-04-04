@@ -1,56 +1,102 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cityGraph } from "@/data/cityGraph";
-import { dijkstra } from "@/modes/traffic";
+import { dijkstra, triggerFlood } from "@/modes/traffic";
 import { UserButton } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Activity,
-  Zap,
-  Droplets,
-  AlertTriangle,
-  FileText,
-  History,
-  GitBranch,
-  Moon,
-  Sun,
-  RefreshCw,
-  X,
-  ChevronRight,
-  AlertCircle,
+  Activity, Zap, Droplets, AlertTriangle,
+  FileText, History, GitBranch, Moon, Sun,
+  RefreshCw, X, ChevronRight, AlertCircle,
+  Navigation, Radio, Cpu, BarChart3, Shield,
+  MapPin, Gauge, Waves, Building2, Bus,
 } from "lucide-react";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
+// ─── Mode config ──────────────────────────────────────────────────────────────
 const MODES = [
-  { id: "traffic", label: "Traffic", icon: Activity },
-  { id: "energy", label: "Energy", icon: Zap },
-  { id: "water", label: "Water", icon: Droplets },
-  { id: "disaster", label: "Disaster", icon: AlertTriangle },
+  {
+    id: "traffic",
+    label: "Traffic",
+    icon: Activity,
+    accent: "#22c55e",
+    accentBg: "rgba(34,197,94,0.10)",
+    accentBorder: "rgba(34,197,94,0.25)",
+    sourceCanBeBlocked: false,
+    destCanBeBlocked: false,
+  },
+  {
+    id: "energy",
+    label: "Energy",
+    icon: Zap,
+    accent: "#f59e0b",
+    accentBg: "rgba(245,158,11,0.10)",
+    accentBorder: "rgba(245,158,11,0.25)",
+    sourceCanBeBlocked: false,
+    destCanBeBlocked: true,
+  },
+  {
+    id: "water",
+    label: "Water",
+    icon: Droplets,
+    accent: "#38bdf8",
+    accentBg: "rgba(56,189,248,0.10)",
+    accentBorder: "rgba(56,189,248,0.25)",
+    sourceCanBeBlocked: false,
+    destCanBeBlocked: false,
+  },
+  {
+    id: "disaster",
+    label: "Disaster",
+    icon: AlertTriangle,
+    accent: "#ef4444",
+    accentBg: "rgba(239,68,68,0.10)",
+    accentBorder: "rgba(239,68,68,0.25)",
+    sourceCanBeBlocked: true,
+    destCanBeBlocked: false,
+  },
 ];
+
+const cloneGraph = (g) => ({
+  nodes: g.nodes.map((n) => ({ ...n })),
+  edges: g.edges.map((e) => ({ ...e })),
+});
 
 export default function Home() {
   const [mode, setMode] = useState("traffic");
-  const [graph, setGraph] = useState(cityGraph);
+  const [graph, setGraph] = useState(() => cloneGraph(cityGraph));
   const [start, setStart] = useState(null);
   const [end, setEnd] = useState(null);
   const [path, setPath] = useState([]);
+  const [pathError, setPathError] = useState("");
   const [alerts, setAlerts] = useState([]);
   const [advice, setAdvice] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [floodActive, setFloodActive] = useState(false);
   const [dark, setDark] = useState(true);
   const [time, setTime] = useState("");
   const [sidePanel, setSidePanel] = useState(null);
-  const [pathError, setPathError] = useState("");
-  const [systemHealth] = useState({
-    traffic: 78,
-    energy: 62,
-    water: 91,
-    disaster: 55,
+  const [routeHistory, setRouteHistory] = useState([]);
+
+  // ── Mode-specific state ───────────────────────────────────────────────────
+  // Disaster
+  const [floodActive, setFloodActive] = useState(false);
+  // Energy
+  const [failedStation, setFailedStation] = useState(null);
+  const [stationLoads, setStationLoads] = useState({
+    SA: 93, SB: 78, SC: 65, SD: 48, SE: 55, SF: 38, SG: 71,
+  });
+  // Water
+  const [burstActive, setBurstActive] = useState(false);
+  const [zonePressures, setZonePressures] = useState({
+    Z1: 3.4, Z3: 3.0, Z7: 1.4, Z8: 3.2,
   });
 
+  const currentMode = MODES.find((m) => m.id === mode);
+  const accent = currentMode.accent;
+
+  // ── Clock ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString("en-GB"));
     tick();
@@ -62,7 +108,7 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // Live simulation
+  // ── Live node load simulation ─────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       setGraph((prev) => ({
@@ -76,7 +122,36 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto alerts
+  // ── Energy: station load simulation ──────────────────────────────────────
+  useEffect(() => {
+    if (mode !== "energy") return;
+    const iv = setInterval(() => {
+      setStationLoads((l) =>
+        Object.fromEntries(
+          Object.entries(l).map(([k, v]) => {
+            const next = v + (Math.random() - 0.5) * 6;
+            return [k, Math.max(30, Math.min(98, Math.floor(next)))];
+          })
+        )
+      );
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [mode]);
+
+  // ── Water: zone pressure simulation ──────────────────────────────────────
+  useEffect(() => {
+    if (mode !== "water") return;
+    const iv = setInterval(() => {
+      setZonePressures((z) => ({
+        ...z,
+        Z1: parseFloat((3.4 + Math.random() * 0.2).toFixed(2)),
+        Z3: parseFloat((3.0 + Math.random() * 0.2).toFixed(2)),
+      }));
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [mode]);
+
+  // ── Auto alerts ───────────────────────────────────────────────────────────
   useEffect(() => {
     graph.nodes.forEach((n) => {
       if (n.load > 80) {
@@ -84,14 +159,8 @@ export default function Home() {
           if (prev.find((a) => a.id === n.id && Date.now() - a.ts < 15000))
             return prev;
           return [
-            {
-              id: n.id,
-              label: n.label,
-              load: Math.round(n.load),
-              mode,
-              time: new Date().toLocaleTimeString(),
-              ts: Date.now(),
-            },
+            { id: n.id, label: n.label, load: Math.round(n.load), mode,
+              time: new Date().toLocaleTimeString(), ts: Date.now() },
             ...prev.slice(0, 49),
           ];
         });
@@ -99,128 +168,156 @@ export default function Home() {
     });
   }, [graph]);
 
-  // Fixed Dijkstra node-click logic
+  // ─── Mode-aware Dijkstra ──────────────────────────────────────────────────
+  const runRoute = useCallback(
+    (srcId, dstId, currentGraph) => {
+      const { sourceCanBeBlocked, destCanBeBlocked } = currentMode;
+      const blockedNodes = currentGraph.nodes.filter((n) => n.isBlocked).map((n) => n.id);
+      const srcBlocked = blockedNodes.includes(srcId);
+      const dstBlocked = blockedNodes.includes(dstId);
+
+      if (srcBlocked && !sourceCanBeBlocked)
+        return { path: [], error: `[${currentMode.label}] Cannot route FROM a failed/flooded node.` };
+      if (dstBlocked && !destCanBeBlocked)
+        return { path: [], error: `[${currentMode.label}] Cannot route TO a flooded/blocked node.` };
+
+      const result = dijkstra(currentGraph, srcId, dstId, blockedNodes);
+      if (!result || result.length === 0) {
+        const srcLabel = currentGraph.nodes.find((n) => n.id === srcId)?.label;
+        const dstLabel = currentGraph.nodes.find((n) => n.id === dstId)?.label;
+        return { path: [], error: `No route from ${srcLabel} to ${dstLabel}.` };
+      }
+      return { path: result, error: "" };
+    },
+    [currentMode]
+  );
+
   const handleNodeClick = (nodeId) => {
     setPathError("");
-    if (!start) {
-      setStart(nodeId);
-      setEnd(null);
-      setPath([]);
-    } else if (nodeId === start) {
-      setStart(null);
-      setPath([]);
-    } else {
-      const blocked = graph.nodes.filter((n) => n.isBlocked).map((n) => n.id);
-      const result = dijkstra(graph, start, nodeId, blocked);
-      if (!result || result.length === 0) {
-        setPathError(
-          `No route from ${graph.nodes.find((n) => n.id === start)?.label} to ${graph.nodes.find((n) => n.id === nodeId)?.label}`,
-        );
-        setPath([]);
-      } else {
-        setPath(result);
-        setEnd(nodeId);
-      }
-      setStart(null);
+    if (!start) { setStart(nodeId); setEnd(null); setPath([]); return; }
+    if (nodeId === start) { setStart(null); setPath([]); return; }
+    const { path: result, error } = runRoute(start, nodeId, graph);
+    if (error) { setPathError(error); setPath([]); }
+    else {
+      setPath(result);
+      setEnd(nodeId);
+      setRouteHistory((prev) => [
+        { from: graph.nodes.find((n) => n.id === start)?.label,
+          to: graph.nodes.find((n) => n.id === nodeId)?.label,
+          path: result, mode, time: new Date().toLocaleTimeString() },
+        ...prev.slice(0, 19),
+      ]);
     }
+    setStart(null);
   };
 
-  // Auto-Route button: pick random valid start/end
-  const runDijkstra = () => {
+  const runAutoRoute = () => {
     setPathError("");
-    const activeNodes = graph.nodes.filter((n) => !n.isBlocked);
-    if (activeNodes.length < 2) {
-      setPathError("Not enough active nodes to compute a path.");
-      return;
-    }
-    const shuffled = [...activeNodes].sort(() => Math.random() - 0.5);
+    const active = graph.nodes.filter((n) => !n.isBlocked);
+    if (active.length < 2) { setPathError("Not enough active nodes."); return; }
+    const shuffled = [...active].sort(() => Math.random() - 0.5);
     const src = shuffled[0].id;
     const dst = shuffled[1].id;
-    const blocked = graph.nodes.filter((n) => n.isBlocked).map((n) => n.id);
-    const result = dijkstra(graph, src, dst, blocked);
-    if (!result || result.length === 0) {
-      setPathError("Could not find a valid route. Try again.");
-    } else {
-      setPath(result);
-      setStart(null);
-      setEnd(dst);
+    const { path: result, error } = runRoute(src, dst, graph);
+    if (error) { setPathError(error); }
+    else {
+      setPath(result); setEnd(dst);
+      setRouteHistory((prev) => [
+        { from: graph.nodes.find((n) => n.id === src)?.label,
+          to: graph.nodes.find((n) => n.id === dst)?.label,
+          path: result, mode, time: new Date().toLocaleTimeString() },
+        ...prev.slice(0, 19),
+      ]);
     }
+    setStart(null);
   };
 
-  const triggerFlood = async () => {
-    // Pick 2–4 random zones from all node IDs
-    const allZones = graph.nodes.map((n) => n.id);
-    const shuffled = [...allZones].sort(() => Math.random() - 0.5);
-    const count = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 zones
-    const zones = shuffled.slice(0, count);
-
+  // ─── Disaster actions ─────────────────────────────────────────────────────
+  const handleTriggerFlood = async () => {
+    const allIds = graph.nodes.map((n) => n.id);
+    const zones = [...allIds].sort(() => Math.random() - 0.5).slice(0, Math.floor(Math.random() * 3) + 2);
     setFloodActive(true);
-    setGraph((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) =>
-        zones.includes(n.id) ? { ...n, isBlocked: true } : n,
-      ),
-      edges: prev.edges.map((e) =>
-        zones.includes(e.from) || zones.includes(e.to)
-          ? { ...e, isBlocked: true }
-          : e,
-      ),
-    }));
-
-    // Save flood incident to MongoDB
+    setGraph((prev) => {
+      const next = cloneGraph(prev);
+      triggerFlood(next, zones, []);
+      return next;
+    });
+    clearPath();
+    setAlerts((prev) => [
+      { id: "flood", label: `Flood — zones ${zones.join(", ")}`, load: 100,
+        mode: "disaster", time: new Date().toLocaleTimeString(), ts: Date.now() },
+      ...prev.slice(0, 49),
+    ]);
     try {
       await fetch("/api/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "disaster",
-          zone: `Zones ${zones.join(", ")}`,
-          severity: "critical",
-          load: 100,
-          description: `Flood triggered — zones ${zones.join(", ")} blocked`,
-        }),
+        body: JSON.stringify({ mode: "disaster", zone: `Zones ${zones.join(", ")}`,
+          severity: "critical", load: 100,
+          description: `Flood triggered — zones ${zones.join(", ")} blocked` }),
       });
-    } catch (err) {
-      console.error("Failed to log flood incident:", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  const resetFlood = async () => {
+  const handleResetFlood = async () => {
     setFloodActive(false);
-    setGraph(cityGraph);
-    setPath([]);
-    setStart(null);
-    setEnd(null);
-    setPathError("");
-
-    // Clear all incidents from MongoDB
-    try {
-      await fetch("/api/incidents", { method: "DELETE" });
-    } catch (err) {
-      console.error("Failed to clear incidents:", err);
-    }
+    setGraph(cloneGraph(cityGraph));
+    clearPath();
+    try { await fetch("/api/incidents", { method: "DELETE" }); } catch (err) { console.error(err); }
   };
 
-  const clearPath = () => {
-    setPath([]);
-    setStart(null);
-    setEnd(null);
-    setPathError("");
+  // ─── Energy actions ───────────────────────────────────────────────────────
+  const handleSimulateFailure = () => {
+    setFailedStation("SA");
+    setStationLoads((l) => ({ ...l, SD: 76, SE: 82, SF: 61 }));
+    setGraph((prev) => {
+      const next = cloneGraph(prev);
+      // Mark the node whose id maps to "SA" as blocked
+      const node = next.nodes.find((n) => n.id === "A");
+      if (node) node.isBlocked = true;
+      return next;
+    });
+    setAlerts((prev) => [
+      { id: "SA", label: "MG Road Sub failure — load redistributed", load: 98,
+        mode: "energy", time: new Date().toLocaleTimeString(), ts: Date.now() },
+      ...prev.slice(0, 49),
+    ]);
   };
 
+  const handleResetEnergy = () => {
+    setFailedStation(null);
+    setStationLoads({ SA: 93, SB: 78, SC: 65, SD: 48, SE: 55, SF: 38, SG: 71 });
+    setGraph(cloneGraph(cityGraph));
+    clearPath();
+  };
+
+  // ─── Water actions ────────────────────────────────────────────────────────
+  const handleSimulateBurst = () => {
+    setBurstActive(true);
+    setZonePressures((z) => ({ ...z, Z7: 0.6 }));
+    setAlerts((prev) => [
+      { id: "Z7", label: "ORR Zone pipe burst — pressure 0.6 bar", load: 95,
+        mode: "water", time: new Date().toLocaleTimeString(), ts: Date.now() },
+      ...prev.slice(0, 49),
+    ]);
+  };
+
+  const handleResetWater = () => {
+    setBurstActive(false);
+    setZonePressures({ Z1: 3.4, Z3: 3.0, Z7: 1.4, Z8: 3.2 });
+  };
+
+  const clearPath = () => { setPath([]); setStart(null); setEnd(null); setPathError(""); };
+
+  // ─── AI Advisor ───────────────────────────────────────────────────────────
   const getAIAdvice = async () => {
-    setAiLoading(true);
-    setAdvice("");
+    setAiLoading(true); setAdvice("");
     try {
       const critical = graph.nodes.find((n) => n.load > 80) || graph.nodes[0];
       const res = await fetch("/api/ai-advice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          zone: critical.label,
-          load: Math.round(critical.load),
-        }),
+        body: JSON.stringify({ mode, zone: critical.label, load: Math.round(critical.load) }),
       });
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -229,260 +326,384 @@ export default function Home() {
         if (done) break;
         setAdvice((prev) => prev + decoder.decode(value));
       }
-    } catch {
-      setAdvice("Failed to fetch advice.");
-    } finally {
-      setAiLoading(false);
-    }
+    } catch { setAdvice("Failed to fetch advice."); }
+    finally { setAiLoading(false); }
   };
 
-  const avgLoad = Math.round(
-    graph.nodes.reduce((a, n) => a + n.load, 0) / graph.nodes.length,
-  );
+  // ─── Derived stats ────────────────────────────────────────────────────────
+  const avgLoad = Math.round(graph.nodes.reduce((a, n) => a + n.load, 0) / graph.nodes.length);
   const criticalCount = graph.nodes.filter((n) => n.load > 80).length;
+  const blockedCount = graph.nodes.filter((n) => n.isBlocked).length;
   const activeEdges = graph.edges.filter((e) => !e.isBlocked).length;
+  const avgStationLoad = Math.round(Object.values(stationLoads).reduce((a, b) => a + b, 0) / Object.keys(stationLoads).length);
+  const z7Pressure = zonePressures.Z7 ?? 1.4;
 
-  const statuses = [
-    { label: "Grid", sub: "Stable", ok: true },
-    { label: "Water", sub: floodActive ? "Burst" : "Normal", ok: !floodActive },
-    { label: "Flood", sub: floodActive ? "Active" : "Clear", ok: !floodActive },
+  // ─── Mode-specific stats row config ──────────────────────────────────────
+  const STATS = {
+    traffic: [
+      { label: "VEHICLES",     value: (2800 + Math.round(avgLoad * 3)).toLocaleString(), icon: Navigation, badge: "LIVE",     badgeColor: "#22c55e" },
+      { label: "AVG SPEED",    value: `${Math.max(15, 60 - Math.round(avgLoad * 0.4))} km/h`, icon: Activity, badge: avgLoad > 70 ? "SLOW" : "OK", badgeColor: avgLoad > 70 ? "#f59e0b" : "#22c55e" },
+      { label: "CONGESTION",   value: `${avgLoad}%`, icon: BarChart3, badge: criticalCount > 0 ? "CRITICAL" : "NORMAL", badgeColor: criticalCount > 0 ? "#ef4444" : "#22c55e" },
+      { label: "ACTIVE ROUTES",value: activeEdges, icon: GitBranch, badge: "DIJKSTRA", badgeColor: accent },
+    ],
+    energy: [
+      { label: "TOTAL LOAD",      value: `${avgStationLoad}%`, icon: Zap,       badge: "PEAK HRS", badgeColor: "#f59e0b" },
+      { label: "ACTIVE STATIONS", value: failedStation ? "6/7" : "7/7", icon: Building2, badge: failedStation ? "1 FAILED" : "ALL ON", badgeColor: failedStation ? "#ef4444" : "#22c55e" },
+      { label: "GRID FLOW",       value: "2.4 GW", icon: Activity,  badge: "MAX FLOW", badgeColor: "#f59e0b" },
+      { label: "EFFICIENCY",      value: "91%",    icon: BarChart3, badge: "+2%",      badgeColor: "#22c55e" },
+    ],
+    water: [
+      { label: "SYSTEM PRESSURE", value: "3.2 bar",              icon: Gauge,   badge: "NORMAL",  badgeColor: "#38bdf8" },
+      { label: "ORR ZONE",        value: `${z7Pressure.toFixed(1)} bar`, icon: Waves,   badge: burstActive ? "BURST" : "OK", badgeColor: burstActive ? "#ef4444" : "#38bdf8" },
+      { label: "ACTIVE PIPES",    value: burstActive ? "24/26" : "26/26", icon: GitBranch, badge: burstActive ? "1 BURST" : "ALL CLEAR", badgeColor: burstActive ? "#ef4444" : "#22c55e" },
+      { label: "MST COVERAGE",    value: "100%",                 icon: Shield,  badge: "PRIM'S",  badgeColor: "#38bdf8" },
+    ],
+    disaster: [
+      { label: "FLOOD LEVEL",  value: floodActive ? "Severe"  : "Standby", icon: Waves,    badge: floodActive ? `${blockedCount} ZONES` : "MONITORING", badgeColor: floodActive ? "#ef4444" : "#22c55e" },
+      { label: "SHELTERS",     value: "12/18",   icon: Building2, badge: "AVAILABLE",  badgeColor: "#22c55e" },
+      { label: "BMTC BUSES",   value: "47",      icon: Bus,       badge: "DEPLOYED",   badgeColor: "#f59e0b" },
+      { label: "EVACUATION",   value: floodActive ? "Active" : "Standby", icon: Navigation, badge: floodActive ? "REROUTED" : "READY", badgeColor: floodActive ? "#ef4444" : "#22c55e" },
+    ],
+  };
+
+  // ─── Mode-specific live metrics ───────────────────────────────────────────
+  const renderMetrics = () => {
+    if (mode === "energy") {
+      return Object.entries(stationLoads).map(([k, v]) => (
+        <div key={k} className="flex items-center gap-2">
+          <span className="text-xs truncate" style={{ color: sub, width: 80, flexShrink: 0 }}>
+            Station {k.slice(1)}
+          </span>
+          <div style={{ flex: 1, height: 4, background: bdr, borderRadius: 9 }}>
+            <motion.div animate={{ width: `${v}%` }} transition={{ duration: 0.8 }}
+                        style={{ height: 4, borderRadius: 9,
+                                 background: v > 80 ? "#ef4444" : v > 65 ? "#f59e0b" : "#22c55e" }} />
+          </div>
+          <span className="text-xs font-mono w-8 text-right flex-shrink-0"
+                style={{ color: v > 80 ? "#ef4444" : v > 65 ? "#f59e0b" : "#22c55e" }}>
+            {v}%
+          </span>
+        </div>
+      ));
+    }
+
+    if (mode === "water") {
+      const waterMetrics = [
+        { name: "Zone 1", pct: Math.round(((zonePressures.Z1 ?? 3.4) / 4) * 100), label: `${(zonePressures.Z1 ?? 3.4).toFixed(1)}b` },
+        { name: "Zone 3", pct: Math.round(((zonePressures.Z3 ?? 3.0) / 4) * 100), label: `${(zonePressures.Z3 ?? 3.0).toFixed(1)}b` },
+        { name: "Zone 5", pct: Math.round((2.8 / 4) * 100),  label: "2.8b" },
+        { name: "Zone 7", pct: Math.round((z7Pressure / 4) * 100), label: `${z7Pressure.toFixed(1)}b`, alert: burstActive },
+        { name: "Zone 9", pct: Math.round((2.6 / 4) * 100),  label: "2.6b" },
+      ];
+      return waterMetrics.map((m) => (
+        <div key={m.name} className="flex items-center gap-2">
+          <span className="text-xs truncate" style={{ color: sub, width: 80, flexShrink: 0 }}>{m.name}</span>
+          <div style={{ flex: 1, height: 4, background: bdr, borderRadius: 9 }}>
+            <motion.div animate={{ width: `${m.pct}%` }} transition={{ duration: 0.8 }}
+                        style={{ height: 4, borderRadius: 9,
+                                 background: m.alert ? "#ef4444" : "#38bdf8" }} />
+          </div>
+          <span className="text-xs font-mono w-8 text-right flex-shrink-0"
+                style={{ color: m.alert ? "#ef4444" : "#38bdf8" }}>
+            {m.label}
+          </span>
+        </div>
+      ));
+    }
+
+    if (mode === "disaster") {
+      const resources = [
+        { name: "Shelters",   pct: 67, label: "12/18", color: "#22c55e" },
+        { name: "BMTC Buses", pct: 78, label: "47/60", color: "#f59e0b" },
+        { name: "Personnel",  pct: 82, label: "246",   color: "#38bdf8" },
+        { name: "Hospitals",  pct: 50, label: "3/6",   color: "#ef4444" },
+      ];
+      return resources.map((r) => (
+        <div key={r.name} className="flex items-center gap-2">
+          <span className="text-xs truncate" style={{ color: sub, width: 80, flexShrink: 0 }}>{r.name}</span>
+          <div style={{ flex: 1, height: 4, background: bdr, borderRadius: 9 }}>
+            <motion.div animate={{ width: `${r.pct}%` }} transition={{ duration: 0.8 }}
+                        style={{ height: 4, borderRadius: 9, background: r.color }} />
+          </div>
+          <span className="text-xs font-mono w-8 text-right flex-shrink-0" style={{ color: r.color }}>
+            {r.label}
+          </span>
+        </div>
+      ));
+    }
+
+    // Default: traffic — first 6 nodes
+    return graph.nodes.slice(0, 6).map((node) => (
+      <div key={node.id} className="flex items-center gap-2">
+        <span className="text-xs truncate" style={{ color: sub, width: 80, flexShrink: 0 }}>
+          {node.label.split(" ")[0]}
+        </span>
+        <div style={{ flex: 1, height: 4, background: bdr, borderRadius: 9 }}>
+          <motion.div
+            animate={{ width: node.isBlocked ? "100%" : `${node.load}%` }}
+            transition={{ duration: 0.8 }}
+            style={{ height: 4, borderRadius: 9,
+                     background: node.isBlocked ? "#3b82f6" : node.load > 80 ? "#ef4444" : node.load > 60 ? "#f97316" : "#22c55e" }}
+          />
+        </div>
+        <span className="text-xs font-mono w-8 text-right flex-shrink-0"
+              style={{ color: node.isBlocked ? "#3b82f6" : node.load > 80 ? "#ef4444" : node.load > 60 ? "#f97316" : "#22c55e" }}>
+          {node.isBlocked ? "⛔" : `${Math.round(node.load)}%`}
+        </span>
+      </div>
+    ));
+  };
+
+  // ─── Mode-specific action buttons ─────────────────────────────────────────
+  const renderActionButtons = () => {
+    if (mode === "disaster") return (
+      <button
+        onClick={floodActive ? handleResetFlood : handleTriggerFlood}
+        style={{
+          background: floodActive ? "rgba(59,130,246,0.10)" : "rgba(239,68,68,0.10)",
+          border: `1px solid ${floodActive ? "rgba(59,130,246,0.30)" : "rgba(239,68,68,0.30)"}`,
+          color: floodActive ? "#60a5fa" : "#ef4444",
+          padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+        }}
+        className={!floodActive ? "animate-pulse" : ""}>
+        {floodActive ? "↺ RESET CITY" : "⚡ TRIGGER FLOOD"}
+      </button>
+    );
+
+    if (mode === "energy") return (
+      <button
+        onClick={failedStation ? handleResetEnergy : handleSimulateFailure}
+        style={{
+          background: failedStation ? "rgba(59,130,246,0.10)" : "rgba(245,158,11,0.10)",
+          border: `1px solid ${failedStation ? "rgba(59,130,246,0.30)" : "rgba(245,158,11,0.30)"}`,
+          color: failedStation ? "#60a5fa" : "#f59e0b",
+          padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+        }}>
+        {failedStation ? "↺ RESTORE GRID" : "⚡ SIMULATE FAILURE"}
+      </button>
+    );
+
+    if (mode === "water") return (
+      <button
+        onClick={burstActive ? handleResetWater : handleSimulateBurst}
+        style={{
+          background: burstActive ? "rgba(59,130,246,0.10)" : "rgba(56,189,248,0.10)",
+          border: `1px solid ${burstActive ? "rgba(59,130,246,0.30)" : "rgba(56,189,248,0.30)"}`,
+          color: burstActive ? "#60a5fa" : "#38bdf8",
+          padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+        }}>
+        {burstActive ? "↺ RESTORE PIPES" : "💧 SIMULATE BURST"}
+      </button>
+    );
+
+    return null;
+  };
+
+  // ─── Mode-specific alert banners ──────────────────────────────────────────
+  const renderAlertBanner = () => {
+    if (mode === "disaster" && floodActive) return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.30)",
+                           borderRadius: 10, padding: "12px 16px" }}
+                  className="flex-shrink-0">
+        <p className="text-xs font-bold" style={{ color: "#ef4444" }}>
+          🚨 CRITICAL — Flood active · {blockedCount} zones blocked · Evacuation routes computed via Dijkstra
+        </p>
+        <p className="text-xs mt-1" style={{ color: sub }}>
+          Route via safe corridors · 12 shelters open · Avoid flooded zones as destination
+        </p>
+      </motion.div>
+    );
+
+    if (mode === "energy" && failedStation) return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.30)",
+                           borderRadius: 10, padding: "12px 16px" }}
+                  className="flex-shrink-0">
+        <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>
+          ⚡ CRITICAL — MG Road substation failed · Load redistributed to E-City, Whitefield, Silk Board
+        </p>
+        <p className="text-xs mt-1" style={{ color: sub }}>
+          Failed node can be destination (rerouting power TO it) · Cannot be source
+        </p>
+      </motion.div>
+    );
+
+    if (mode === "energy") return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.20)",
+                           borderRadius: 10, padding: "12px 16px" }}
+                  className="flex-shrink-0">
+        <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>
+          ⚠ WARNING — MG Road sub approaching critical ({stationLoads.SA}%) · Peak window 18:00–21:00
+        </p>
+        <p className="text-xs mt-1" style={{ color: sub }}>Max flow algorithm active</p>
+      </motion.div>
+    );
+
+    if (mode === "water" && burstActive) return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.30)",
+                           borderRadius: 10, padding: "12px 16px" }}
+                  className="flex-shrink-0">
+        <p className="text-xs font-bold" style={{ color: "#ef4444" }}>
+          🚨 CRITICAL — Pipe burst in ORR Zone · Pressure drop to {z7Pressure.toFixed(1)} bar (−58%)
+        </p>
+        <p className="text-xs mt-1" style={{ color: sub }}>
+          Pipe age: 23yr · Rainfall: high · BWSSB crew ETA 28 min
+        </p>
+      </motion.div>
+    );
+
+    return null;
+  };
+
+  // ─── Theme tokens ─────────────────────────────────────────────────────────
+  const bg      = dark ? "#0a0c12" : "#f4f4f0";
+  const card    = dark ? "#10121a" : "#ffffff";
+  const side    = dark ? "#0d0f18" : "#ebebе6";
+  const txt     = dark ? "#e8e8e0" : "#111118";
+  const sub     = dark ? "#5a5c6a" : "#888898";
+  const bdr     = dark ? "#1e2030" : "#e0e0d8";
+  const inputBg = dark ? "#181a26" : "#f0f0ea";
+
+  // ─── Side panel ───────────────────────────────────────────────────────────
+  const PANELS = [
+    { id: "incident",  label: "Incident Log",  icon: FileText  },
+    { id: "history",   label: "Route History", icon: History   },
+    { id: "citygraph", label: "City Graph",    icon: GitBranch },
   ];
 
-  const bg = dark ? "bg-[#0f1117]" : "bg-[#f0f0ea]";
-  const card = dark ? "bg-[#1a1d27]" : "bg-white";
-  const side = dark ? "bg-[#13151f]" : "bg-[#e8e8e2]";
-  const txt = dark ? "text-gray-100" : "text-gray-900";
-  const sub = dark ? "text-gray-400" : "text-gray-500";
-  const bdr = dark ? "border-gray-800" : "border-gray-200";
-
-  const modeStatus = {
-    traffic: "Live",
-    energy: "Ok",
-    water: "—",
-    disaster: floodActive ? "Active" : "Clear",
-  };
-  const modeStatusColor = {
-    traffic: "text-green-400 bg-green-400/10",
-    energy: "text-green-400 bg-green-400/10",
-    water: dark ? "text-gray-500 bg-gray-700/30" : "text-gray-400 bg-gray-200",
-    disaster: floodActive
-      ? "text-red-400 bg-red-400/10"
-      : "text-green-400 bg-green-400/10",
-  };
-
-  // Side panel renderer
   const renderSidePanel = () => {
     if (!sidePanel) return null;
-
-    const panelTitles = {
-      incident: "Incident Log",
-      history: "Route History",
-      citygraph: "City Graph",
-    };
-
+    const panelLabel = PANELS.find((p) => p.id === sidePanel)?.label;
     return (
       <AnimatePresence>
-        <motion.div
-          key={sidePanel}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.2 }}
-          className={`w-72 ${side} border-r ${bdr} flex flex-col overflow-hidden flex-shrink-0`}
-        >
-          <div
-            className={`flex items-center justify-between px-4 py-3 border-b ${bdr}`}
-          >
-            <p className={`text-sm font-semibold ${txt}`}>
-              {panelTitles[sidePanel]}
-            </p>
-            <button
-              onClick={() => setSidePanel(null)}
-              className={`${sub} hover:${txt} transition-colors`}
-            >
-              <X size={14} />
+        <motion.div key={sidePanel}
+                    initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.18 }}
+                    style={{ background: side, borderRight: `1px solid ${bdr}`, color: txt }}
+                    className="w-72 flex flex-col overflow-hidden flex-shrink-0">
+          <div style={{ borderBottom: `1px solid ${bdr}` }}
+               className="flex items-center justify-between px-4 py-3">
+            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: sub }}>
+              {panelLabel}
+            </span>
+            <button onClick={() => setSidePanel(null)} style={{ color: sub }}
+                    className="transition-opacity hover:opacity-60">
+              <X size={13} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* Incident Log */}
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             {sidePanel === "incident" && (
-              <div className="flex flex-col gap-2">
-                {alerts.length === 0 ? (
-                  <p className={`text-xs ${sub}`}>No incidents recorded.</p>
-                ) : (
-                  alerts.map((a, i) => (
-                    <div
-                      key={a.ts + i}
-                      className={`rounded-lg px-3 py-2.5 flex flex-col gap-0.5 border
-                        ${
-                          a.load > 90
-                            ? dark
-                              ? "border-red-500/30 bg-red-500/10"
-                              : "border-red-200 bg-red-50"
-                            : dark
-                              ? "border-orange-500/20 bg-orange-500/10"
-                              : "border-orange-200 bg-orange-50"
-                        }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-xs font-semibold ${a.load > 90 ? "text-red-400" : "text-orange-400"}`}
-                        >
-                          {a.label}
-                        </span>
-                        <span className={`text-xs ${sub}`}>{a.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={sub}>
-                          Load: <span className={txt}>{a.load}%</span>
-                        </span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-xs ${modeStatusColor[a.mode] || ""}`}
-                        >
-                          {a.mode}
-                        </span>
-                      </div>
+              alerts.length === 0
+                ? <p className="text-xs" style={{ color: sub }}>No incidents recorded.</p>
+                : alerts.map((a, i) => (
+                  <div key={a.ts + i}
+                       style={{ background: a.load > 90 ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
+                                border: `1px solid ${a.load > 90 ? "rgba(239,68,68,0.25)" : "rgba(245,158,11,0.20)"}`,
+                                borderRadius: 8 }}
+                       className="px-3 py-2.5">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="text-xs font-semibold"
+                            style={{ color: a.load > 90 ? "#ef4444" : "#f59e0b" }}>{a.label}</span>
+                      <span className="text-xs" style={{ color: sub }}>{a.time}</span>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Route History */}
-            {sidePanel === "history" && (
-              <div className="flex flex-col gap-2">
-                {path.length === 0 ? (
-                  <p className={`text-xs ${sub}`}>
-                    No routes computed yet. Click two nodes or use Auto-Route.
-                  </p>
-                ) : (
-                  <div className={`rounded-lg p-3 border ${bdr} ${card}`}>
-                    <p
-                      className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-2`}
-                    >
-                      Latest Route
-                    </p>
-                    <div className="flex flex-col gap-1.5">
-                      {path.map((id, i) => {
-                        const node = graph.nodes.find((n) => n.id === id);
-                        return (
-                          <div
-                            key={id}
-                            className="flex items-center gap-2 text-xs"
-                          >
-                            <span
-                              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0
-                                ${i === 0 ? "bg-green-500" : i === path.length - 1 ? "bg-blue-500" : "bg-gray-600"}`}
-                            >
-                              {i + 1}
-                            </span>
-                            <span className={txt}>{node?.label ?? id}</span>
-                            {i < path.length - 1 && (
-                              <ChevronRight size={10} className={sub} />
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="flex gap-2 text-xs" style={{ color: sub }}>
+                      <span>Load: <span style={{ color: txt }}>{a.load}%</span></span>
+                      <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10,
+                                     background: MODES.find(m => m.id === a.mode)?.accentBg,
+                                     color: MODES.find(m => m.id === a.mode)?.accent }}>{a.mode}</span>
                     </div>
-                    <p className={`text-xs ${sub} mt-3`}>
-                      {path.length - 1} hops · Dijkstra optimal
-                    </p>
                   </div>
-                )}
-              </div>
+                ))
             )}
 
-            {/* City Graph */}
+            {sidePanel === "history" && (
+              routeHistory.length === 0
+                ? <p className="text-xs" style={{ color: sub }}>No routes computed yet.</p>
+                : routeHistory.map((r, i) => (
+                  <div key={i} style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 8 }}
+                       className="p-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-semibold" style={{ color: txt }}>{r.from} → {r.to}</span>
+                      <span className="text-xs" style={{ color: sub }}>{r.time}</span>
+                    </div>
+                    <div className="flex items-center flex-wrap gap-1 mt-1.5">
+                      {r.path.map((id, j) => (
+                        <span key={id} className="flex items-center gap-1">
+                          <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                                style={{ background: inputBg, color: txt }}>{id}</span>
+                          {j < r.path.length - 1 && <ChevronRight size={9} style={{ color: sub }} />}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs" style={{ color: sub }}>{r.path.length - 1} hops</span>
+                      <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4,
+                                     background: MODES.find(m => m.id === r.mode)?.accentBg,
+                                     color: MODES.find(m => m.id === r.mode)?.accent }}>{r.mode}</span>
+                    </div>
+                  </div>
+                ))
+            )}
+
             {sidePanel === "citygraph" && (
-              <div className="flex flex-col gap-3">
-                <div className={`rounded-lg p-3 border ${bdr} ${card}`}>
-                  <p
-                    className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-2`}
-                  >
-                    Graph Summary
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+              <>
+                <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 8 }} className="p-3 mb-1">
+                  <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: sub }}>Summary</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: "Nodes", value: graph.nodes.length },
-                      { label: "Edges", value: graph.edges.length },
-                      { label: "Active Edges", value: activeEdges },
-                      {
-                        label: "Blocked Nodes",
-                        value: graph.nodes.filter((n) => n.isBlocked).length,
-                      },
+                      { label: "Nodes",        value: graph.nodes.length },
+                      { label: "Edges",         value: graph.edges.length },
+                      { label: "Active Edges",  value: activeEdges },
+                      { label: "Blocked Nodes", value: blockedCount },
                     ].map((s) => (
-                      <div
-                        key={s.label}
-                        className={`rounded-md p-2 ${dark ? "bg-[#0f1117]" : "bg-gray-50"}`}
-                      >
-                        <p className={`${sub} text-xs`}>{s.label}</p>
-                        <p className={`font-bold text-lg ${txt}`}>{s.value}</p>
+                      <div key={s.label} style={{ background: inputBg, borderRadius: 6 }} className="px-2 py-2">
+                        <p className="text-xs mb-0.5" style={{ color: sub }}>{s.label}</p>
+                        <p className="text-xl font-black" style={{ color: txt }}>{s.value}</p>
                       </div>
                     ))}
                   </div>
                 </div>
-
-                <div className={`rounded-lg p-3 border ${bdr} ${card}`}>
-                  <p
-                    className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-2`}
-                  >
-                    Nodes
-                  </p>
+                <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 8 }} className="p-3 mb-1">
+                  <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: sub }}>Nodes</p>
                   <div className="flex flex-col gap-1.5">
                     {graph.nodes.map((n) => (
-                      <div
-                        key={n.id}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0
-                            ${n.isBlocked ? "bg-gray-600" : n.load > 80 ? "bg-red-500" : n.load > 60 ? "bg-orange-400" : "bg-green-500"}`}
-                          >
+                      <div key={n.id} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                                style={{ background: n.isBlocked ? "#374151" : n.load > 80 ? "#ef4444" : n.load > 60 ? "#f97316" : "#22c55e" }}>
                             {n.id}
                           </span>
-                          <span
-                            className={`${n.isBlocked ? sub : txt} truncate max-w-[130px]`}
-                          >
+                          <span style={{ color: n.isBlocked ? sub : txt }} className="truncate max-w-[120px]">
                             {n.label}
                           </span>
                         </div>
-                        <span
-                          className={`font-mono ${n.isBlocked ? sub : n.load > 80 ? "text-red-400" : n.load > 60 ? "text-orange-400" : "text-green-400"}`}
-                        >
+                        <span className="font-mono"
+                              style={{ color: n.isBlocked ? sub : n.load > 80 ? "#ef4444" : n.load > 60 ? "#f97316" : "#22c55e" }}>
                           {n.isBlocked ? "⛔" : `${Math.round(n.load)}%`}
                         </span>
                       </div>
                     ))}
                   </div>
                 </div>
-
-                <div className={`rounded-lg p-3 border ${bdr} ${card}`}>
-                  <p
-                    className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-2`}
-                  >
-                    Edges
-                  </p>
+                <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 8 }} className="p-3">
+                  <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: sub }}>Edges</p>
                   <div className="flex flex-col gap-1">
                     {graph.edges.map((e, i) => (
-                      <div
-                        key={i}
-                        className={`flex items-center justify-between text-xs ${e.isBlocked ? "opacity-40" : ""}`}
-                      >
-                        <span className={sub}>
-                          {e.from} → {e.to}
-                        </span>
-                        <span
-                          className={`font-mono ${e.isBlocked ? "text-red-400" : txt}`}
-                        >
+                      <div key={i} className="flex items-center justify-between text-xs"
+                           style={{ opacity: e.isBlocked ? 0.4 : 1 }}>
+                        <span style={{ color: sub }}>{e.from} → {e.to}</span>
+                        <span className="font-mono" style={{ color: e.isBlocked ? "#ef4444" : txt }}>
                           {e.isBlocked ? "blocked" : `w:${e.weight ?? "—"}`}
                         </span>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </motion.div>
@@ -490,164 +711,130 @@ export default function Home() {
     );
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className={`${bg} ${txt} min-h-screen flex flex-col font-sans`}>
-      {/* Top Navbar */}
-      <div
-        className={`flex items-center justify-between px-5 py-3 border-b ${bdr} ${card}`}
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-black text-lg tracking-tight">
-            UrbanTwins
-            <span className={`text-xs font-normal ml-0.5 ${sub}`}>v2</span>
-          </span>
-          <span className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-            Live
-          </span>
+    <div style={{ background: bg, color: txt, minHeight: "100vh",
+                  fontFamily: "'IBM Plex Mono', 'Fira Code', monospace" }}
+         className="flex flex-col">
+
+      {/* ── Top bar ───────────────────────────────────────────────────── */}
+      <header style={{ background: card, borderBottom: `1px solid ${bdr}` }}
+              className="flex items-center justify-between px-5 py-3 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <div style={{ background: accent, width: 8, height: 8, borderRadius: "50%" }}
+                 className="animate-pulse" />
+            <span className="font-black text-base tracking-tight" style={{ color: txt }}>URBANTWINS</span>
+            <span className="text-xs" style={{ color: sub }}>OPS</span>
+          </div>
+          <div style={{ background: currentMode.accentBg, border: `1px solid ${currentMode.accentBorder}`,
+                        color: accent, padding: "2px 10px", borderRadius: 999,
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.08em" }}>
+            {currentMode.label.toUpperCase()} MODE
+          </div>
         </div>
 
-        {/* Status badges */}
         <div className="flex items-center gap-2">
-          {statuses.map((s) => (
-            <div
-              key={s.label}
-              className={`px-3 py-1 rounded-lg border text-xs font-medium ${bdr}
-              ${
-                s.ok
-                  ? dark
-                    ? "bg-[#1a1d27] text-gray-300"
-                    : "bg-white text-gray-700"
-                  : "border-red-500/40 bg-red-500/10 text-red-400"
-              }`}
-            >
-              <span className={`${sub} text-xs`}>{s.label}</span>
-              <br />
-              <span className="font-semibold">{s.sub}</span>
+          {[
+            { label: "GRID",  ok: !failedStation },
+            { label: "WATER", ok: !burstActive },
+            { label: "FLOOD", ok: !floodActive },
+          ].map((s) => (
+            <div key={s.label}
+                 style={{ background: s.ok ? inputBg : "rgba(239,68,68,0.08)",
+                           border: `1px solid ${s.ok ? bdr : "rgba(239,68,68,0.30)"}`,
+                           color: s.ok ? sub : "#ef4444",
+                           padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+              {s.label}&nbsp;
+              <span style={{ color: s.ok ? (dark ? "#22c55e" : "#16a34a") : "#ef4444" }}>●</span>
             </div>
           ))}
         </div>
 
         <div className="flex items-center gap-3">
-          <span className={`text-sm font-mono ${sub}`}>{time}</span>
-          <button
-            onClick={() => setDark(!dark)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${bdr} text-xs font-medium ${sub} hover:${txt} transition-all`}
-          >
-            {dark ? <Sun size={13} /> : <Moon size={13} />}
-            {dark ? "Light" : "Dark"}
+          <span className="text-sm font-mono" style={{ color: sub }}>{time}</span>
+          <button onClick={() => setDark(!dark)}
+                  style={{ border: `1px solid ${bdr}`, background: inputBg, color: sub,
+                            padding: "5px 12px", borderRadius: 6, fontSize: 12 }}
+                  className="flex items-center gap-1.5 transition-opacity hover:opacity-70">
+            {dark ? <Sun size={12} /> : <Moon size={12} />}
+            {dark ? "LIGHT" : "DARK"}
           </button>
           <UserButton />
         </div>
-      </div>
+      </header>
 
-      {/* Body */}
+      {/* ── Body ──────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Primary Sidebar */}
-        <div
-          className={`w-56 ${side} border-r ${bdr} flex flex-col p-4 gap-5 flex-shrink-0`}
-        >
+
+        {/* ── Primary sidebar ─────────────────────────────────────────── */}
+        <nav style={{ background: side, borderRight: `1px solid ${bdr}`, width: 200 }}
+             className="flex flex-col p-4 gap-6 flex-shrink-0 overflow-y-auto">
+
           <div>
-            <p
-              className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-3`}
-            >
-              Systems
-            </p>
+            <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: sub }}>Systems</p>
             <div className="flex flex-col gap-1">
               {MODES.map((m) => {
                 const Icon = m.icon;
                 const active = mode === m.id;
                 return (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setMode(m.id);
-                      clearPath();
-                    }}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all
-                      ${
-                        active
-                          ? dark
-                            ? "bg-green-500/15 text-green-400 border-l-2 border-green-500"
-                            : "bg-green-50 text-green-700 border-l-2 border-green-600"
-                          : `${sub} hover:${txt} hover:bg-white/5`
-                      }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Icon size={15} />
-                      {m.label}
-                    </span>
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${modeStatusColor[m.id]}`}
-                    >
-                      {modeStatus[m.id]}
-                    </span>
+                  <button key={m.id} onClick={() => { setMode(m.id); clearPath(); }}
+                          style={{ background: active ? m.accentBg : "transparent",
+                                   border: `1px solid ${active ? m.accentBorder : "transparent"}`,
+                                   color: active ? m.accent : sub, borderRadius: 7,
+                                   padding: "8px 12px", textAlign: "left",
+                                   fontSize: 13, fontWeight: active ? 700 : 400, transition: "all 0.15s" }}
+                          className="flex items-center gap-2 w-full">
+                    <Icon size={14} />
+                    {m.label}
+                    {active && (
+                      <span style={{ marginLeft: "auto", fontSize: 9, background: m.accentBg,
+                                     color: m.accent, padding: "1px 5px", borderRadius: 3,
+                                     border: `1px solid ${m.accentBorder}` }}>LIVE</span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* System Health bars */}
-          <div>
-            <p
-              className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-3`}
-            >
-              System Health
-            </p>
-            <div className="flex flex-col gap-2.5">
-              {Object.entries(systemHealth).map(([key, val]) => (
-                <div key={key}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className={`capitalize ${sub}`}>{key}</span>
-                    <span className={txt}>{val}%</span>
-                  </div>
-                  <div
-                    className={`h-1.5 rounded-full ${dark ? "bg-gray-800" : "bg-gray-200"}`}
-                  >
-                    <div
-                      className={`h-1.5 rounded-full transition-all duration-700
-                      ${val > 80 ? "bg-blue-500" : val > 60 ? "bg-green-500" : "bg-red-500"}`}
-                      style={{ width: `${val}%` }}
-                    />
-                  </div>
+          {/* Route rules */}
+          <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 8 }} className="p-3">
+            <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: sub }}>Route Rules</p>
+            <div className="flex flex-col gap-1.5 text-xs" style={{ color: sub }}>
+              {[
+                { label: "Blocked as source", ok: currentMode.sourceCanBeBlocked },
+                { label: "Blocked as dest",   ok: currentMode.destCanBeBlocked },
+                { label: "Pass-through",       ok: false },
+              ].map((r) => (
+                <div key={r.label} className="flex items-center gap-2">
+                  <span style={{ color: r.ok ? "#22c55e" : "#ef4444" }}>{r.ok ? "✓" : "✗"}</span>
+                  <span>{r.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Tools — clickable */}
+          {/* Tools */}
           <div>
-            <p
-              className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-3`}
-            >
-              Tools
-            </p>
+            <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: sub }}>Tools</p>
             <div className="flex flex-col gap-1">
-              {[
-                { label: "Incident Log", icon: FileText, panel: "incident" },
-                { label: "History", icon: History, panel: "history" },
-                { label: "City Graph", icon: GitBranch, panel: "citygraph" },
-              ].map((t) => {
-                const Icon = t.icon;
-                const isOpen = sidePanel === t.panel;
+              {PANELS.map((p) => {
+                const Icon = p.icon;
+                const open = sidePanel === p.id;
                 return (
-                  <button
-                    key={t.label}
-                    onClick={() => setSidePanel(isOpen ? null : t.panel)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all
-                      ${
-                        isOpen
-                          ? dark
-                            ? "bg-white/10 text-white"
-                            : "bg-gray-900/10 text-gray-900"
-                          : `${sub} hover:${txt} hover:bg-white/5`
-                      }`}
-                  >
-                    <Icon size={14} />
-                    {t.label}
-                    {t.label === "Incident Log" && alerts.length > 0 && (
-                      <span className="ml-auto text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 font-bold leading-none">
+                  <button key={p.id} onClick={() => setSidePanel(open ? null : p.id)}
+                          style={{ background: open ? `${accent}15` : "transparent",
+                                   border: `1px solid ${open ? `${accent}30` : "transparent"}`,
+                                   color: open ? accent : sub, borderRadius: 7,
+                                   padding: "8px 12px", textAlign: "left",
+                                   fontSize: 13, fontWeight: open ? 600 : 400 }}
+                          className="flex items-center gap-2 w-full">
+                    <Icon size={13} />
+                    {p.label}
+                    {p.id === "incident" && alerts.length > 0 && (
+                      <span style={{ marginLeft: "auto", background: "#ef4444", color: "#fff",
+                                     fontSize: 10, padding: "0 5px", borderRadius: 999, fontWeight: 700 }}>
                         {alerts.length > 9 ? "9+" : alerts.length}
                       </span>
                     )}
@@ -656,344 +843,243 @@ export default function Home() {
               })}
             </div>
           </div>
-        </div>
 
-        {/* Slide-out Tool Panel */}
+          {/* Health bars */}
+          <div>
+            <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: sub }}>Health</p>
+            <div className="flex flex-col gap-2.5">
+              {[
+                { label: "Traffic", val: avgLoad,                               accent: "#22c55e" },
+                { label: "Energy",  val: failedStation ? 35 : avgStationLoad,   accent: "#f59e0b" },
+                { label: "Water",   val: burstActive   ? 40 : 80,               accent: "#38bdf8" },
+                { label: "Disaster",val: floodActive   ? 25 : 85,               accent: "#ef4444" },
+              ].map((h) => (
+                <div key={h.label}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span style={{ color: sub }}>{h.label}</span>
+                    <span style={{ color: txt }}>{h.val}%</span>
+                  </div>
+                  <div style={{ height: 3, background: bdr, borderRadius: 9 }}>
+                    <div style={{ height: 3, borderRadius: 9, width: `${h.val}%`,
+                                  background: h.val > 80 ? "#ef4444" : h.val > 60 ? "#f59e0b" : h.accent,
+                                  transition: "width 0.8s" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </nav>
+
         {renderSidePanel()}
 
-        {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden p-4 gap-4">
-          {/* Mode tabs */}
-          <div
-            className={`flex items-center gap-1 ${card} border ${bdr} rounded-xl p-1 w-fit`}
-          >
-            {MODES.map((m) => {
-              const Icon = m.icon;
-              const active = mode === m.id;
+        {/* ── Main content ──────────────────────────────────────────────── */}
+        <main className="flex-1 flex flex-col overflow-hidden p-4 gap-4">
+
+          {/* Stats row */}
+          <div className="grid grid-cols-4 gap-3 flex-shrink-0">
+            {STATS[mode].map((stat) => {
+              const Icon = stat.icon;
               return (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setMode(m.id);
-                    clearPath();
-                  }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
-                    ${
-                      active
-                        ? dark
-                          ? "bg-green-600 text-white shadow"
-                          : "bg-green-700 text-white shadow"
-                        : `${sub} hover:${txt}`
-                    }`}
-                >
-                  <Icon size={14} />
-                  {m.label}
-                </button>
+                <div key={stat.label}
+                     style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                     className="p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold tracking-widest" style={{ color: sub }}>{stat.label}</p>
+                    <Icon size={13} style={{ color: sub }} />
+                  </div>
+                  <p className="text-3xl font-black leading-none mb-2" style={{ color: txt }}>{stat.value}</p>
+                  <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, fontWeight: 700,
+                                  background: `${stat.badgeColor}18`, color: stat.badgeColor,
+                                  border: `1px solid ${stat.badgeColor}30`, alignSelf: "flex-start",
+                                  letterSpacing: "0.07em" }}>
+                    {stat.badge}
+                  </span>
+                </div>
               );
             })}
           </div>
 
-          {/* Stats row */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              {
-                label: "TOTAL VEHICLES",
-                value: (2800 + Math.round(avgLoad * 3)).toLocaleString(),
-                badge: "Live",
-                badgeColor: "text-green-400 bg-green-400/10",
-              },
-              {
-                label: "AVG SPEED",
-                value: `${Math.max(15, 60 - Math.round(avgLoad * 0.4))} km/h`,
-                badge: avgLoad > 70 ? "Slow" : "Normal",
-                badgeColor:
-                  avgLoad > 70
-                    ? "text-orange-400 bg-orange-400/10"
-                    : "text-green-400 bg-green-400/10",
-              },
-              {
-                label: "CONGESTION",
-                value: avgLoad + "%",
-                badge: criticalCount > 0 ? "Critical" : "Normal",
-                badgeColor:
-                  criticalCount > 0
-                    ? "text-red-400 bg-red-400/10"
-                    : "text-green-400 bg-green-400/10",
-              },
-              {
-                label: "ACTIVE ROUTES",
-                value: activeEdges,
-                badge: "Dijkstra's",
-                badgeColor: "text-blue-400 bg-blue-400/10",
-              },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className={`${card} border ${bdr} rounded-xl p-4`}
-              >
-                <p
-                  className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-1`}
-                >
-                  {stat.label}
-                </p>
-                <p className={`text-3xl font-black ${txt} leading-none mb-2`}>
-                  {stat.value}
-                </p>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${stat.badgeColor}`}
-                >
-                  {stat.badge}
-                </span>
-              </div>
-            ))}
-          </div>
+          {/* Map + right panel */}
+          <div className="flex gap-4 flex-1 overflow-hidden min-h-0">
 
-          {/* Map + Right panel */}
-          <div className="flex gap-4 flex-1 overflow-hidden">
             {/* Map card */}
-            <div
-              className={`flex-1 ${card} border ${bdr} rounded-xl overflow-hidden flex flex-col`}
-            >
-              <div
-                className={`flex items-center justify-between px-4 py-3 border-b ${bdr}`}
-              >
+            <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                 className="flex-1 flex flex-col overflow-hidden">
+              <div style={{ borderBottom: `1px solid ${bdr}` }}
+                   className="flex items-center justify-between px-4 py-3 flex-shrink-0">
                 <div>
-                  <p className={`font-semibold text-sm ${txt}`}>
+                  <p className="font-bold text-sm" style={{ color: txt }}>
                     City Road Network
+                    <span className="ml-2 text-xs font-normal" style={{ color: sub }}>{currentMode.label} Mode</span>
                   </p>
-                  <p className={`text-xs ${sub}`}>
+                  <p className="text-xs mt-0.5" style={{ color: sub }}>
                     {start
-                      ? `Start: ${graph.nodes.find((n) => n.id === start)?.label} — click a destination node`
-                      : "Click two nodes to find shortest path, or use Auto-Route"}
+                      ? `Origin: ${graph.nodes.find((n) => n.id === start)?.label} — select destination`
+                      : "Click two nodes to route · Auto-Route for random path"}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  {mode === "disaster" && (
-                    <button
-                      onClick={floodActive ? resetFlood : triggerFlood}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                        ${floodActive ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse"}`}
-                    >
-                      {floodActive ? "Reset City" : "Trigger Flood"}
-                    </button>
-                  )}
+                <div className="flex items-center gap-2">
+                  {renderActionButtons()}
                   {path.length > 0 && (
-                    <button
-                      onClick={clearPath}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${bdr} ${sub} hover:${txt} transition-all`}
-                    >
-                      Clear Path
+                    <button onClick={clearPath}
+                            style={{ background: inputBg, border: `1px solid ${bdr}`,
+                                      color: sub, padding: "6px 12px", borderRadius: 7, fontSize: 12 }}>
+                      CLEAR PATH
                     </button>
                   )}
-                  <button
-                    onClick={runDijkstra}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                      ${dark ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30" : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"}`}
-                  >
-                    Auto-Route
+                  <button onClick={runAutoRoute}
+                          style={{ background: `${accent}18`, border: `1px solid ${accent}40`,
+                                    color: accent, padding: "6px 14px", borderRadius: 7,
+                                    fontSize: 12, fontWeight: 700 }}>
+                    AUTO-ROUTE
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1">
-                <MapView
-                  nodes={graph.nodes}
-                  edges={graph.edges}
-                  path={path}
-                  onNodeClick={handleNodeClick}
-                />
+              <div className="flex-1 min-h-0">
+                <MapView nodes={graph.nodes} edges={graph.edges} path={path} onNodeClick={handleNodeClick} />
               </div>
 
-              {/* Path error */}
-              {pathError && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="px-4 py-2 border-t border-red-500/30 bg-red-500/10 flex items-center gap-2 text-xs text-red-400"
-                >
-                  <AlertCircle size={13} />
-                  {pathError}
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {pathError && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                              style={{ borderTop: "1px solid rgba(239,68,68,0.25)",
+                                       background: "rgba(239,68,68,0.08)",
+                                       color: "#ef4444", padding: "8px 16px", fontSize: 12 }}
+                              className="flex items-center gap-2 flex-shrink-0">
+                    <AlertCircle size={13} />
+                    {pathError}
+                    <button onClick={() => setPathError("")} className="ml-auto opacity-60 hover:opacity-100">
+                      <X size={11} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Path display */}
-              {path.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`px-4 py-3 border-t ${bdr} font-mono text-sm`}
-                >
-                  <span className={`${sub} mr-2`}>Optimal path:</span>
-                  <span className="text-blue-400 font-semibold">
-                    {path
-                      .map(
-                        (id) =>
-                          graph.nodes
-                            .find((n) => n.id === id)
-                            ?.label.split(" ")[0],
-                      )
-                      .join(" → ")}
-                  </span>
-                  <span className={`ml-3 text-xs ${sub}`}>
-                    ({path.length - 1} hops)
-                  </span>
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {path.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                              style={{ borderTop: `1px solid ${bdr}`, padding: "10px 16px", fontSize: 12 }}
+                              className="flex items-center gap-2 flex-shrink-0">
+                    <MapPin size={12} style={{ color: accent, flexShrink: 0 }} />
+                    <span style={{ color: sub }}>Optimal:</span>
+                    <span className="font-bold" style={{ color: accent }}>
+                      {path.map((id) => graph.nodes.find((n) => n.id === id)?.label?.split(" ")[0]).join(" → ")}
+                    </span>
+                    <span style={{ color: sub, marginLeft: 8 }}>{path.length - 1} hops · Dijkstra optimal</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Legend */}
-              <div
-                className={`flex items-center gap-4 px-4 py-2 border-t ${bdr} text-xs ${sub}`}
-              >
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />{" "}
-                  Clear
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-0.5 bg-orange-400 inline-block rounded" />{" "}
-                  Moderate
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-0.5 bg-red-500 inline-block rounded" />{" "}
-                  Congested
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-0.5 bg-blue-400 inline-block rounded" />{" "}
-                  Shortest path
-                </span>
+              <div style={{ borderTop: `1px solid ${bdr}`, padding: "7px 16px" }}
+                   className="flex items-center gap-5 flex-shrink-0">
+                {[
+                  { color: "#22c55e", label: "Clear" },
+                  { color: "#f97316", label: "Moderate" },
+                  { color: "#ef4444", label: "Congested" },
+                  { color: "#facc15", label: "Path" },
+                  { color: "#3b82f6", label: "Blocked" },
+                ].map((l) => (
+                  <span key={l.label} className="flex items-center gap-1.5" style={{ fontSize: 11, color: sub }}>
+                    <span style={{ width: 18, height: 3, background: l.color, display: "inline-block", borderRadius: 2 }} />
+                    {l.label}
+                  </span>
+                ))}
               </div>
             </div>
 
             {/* Right panel */}
-            <div className="w-72 flex flex-col gap-3 overflow-y-auto">
+            <div className="w-72 flex flex-col gap-3 overflow-y-auto flex-shrink-0">
+
               {/* Live metrics */}
-              <div className={`${card} border ${bdr} rounded-xl p-4`}>
-                <p className={`text-sm font-semibold ${txt} mb-3`}>
-                  Live Metrics
-                </p>
+              <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                   className="p-4 flex-shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold" style={{ color: txt }}>
+                    {mode === "energy" ? "Station Load" : mode === "water" ? "Zone Pressure" : mode === "disaster" ? "Resources" : "Live Metrics"}
+                  </p>
+                  <Radio size={13} style={{ color: accent }} className="animate-pulse" />
+                </div>
                 <div className="flex flex-col gap-3">
-                  {graph.nodes.slice(0, 5).map((node) => (
-                    <div key={node.id} className="flex items-center gap-2">
-                      <span className={`text-xs w-24 truncate ${sub}`}>
-                        {node.label}
-                      </span>
-                      <div
-                        className={`flex-1 h-1.5 rounded-full ${dark ? "bg-gray-800" : "bg-gray-200"}`}
-                      >
-                        <motion.div
-                          animate={{ width: `${node.load}%` }}
-                          transition={{ duration: 0.8 }}
-                          className={`h-1.5 rounded-full ${node.load > 80 ? "bg-red-500" : node.load > 60 ? "bg-orange-400" : "bg-green-500"}`}
-                        />
-                      </div>
-                      <span
-                        className={`text-xs font-mono w-8 text-right ${node.load > 80 ? "text-red-400" : node.load > 60 ? "text-orange-400" : "text-green-400"}`}
-                      >
-                        {Math.round(node.load)}%
-                      </span>
-                    </div>
-                  ))}
+                  {renderMetrics()}
                 </div>
               </div>
 
               {/* AI Advisor */}
-              <div className={`${card} border ${bdr} rounded-xl p-4 flex-1`}>
+              <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                   className="p-4 flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-1">
-                  <p className={`text-sm font-semibold ${txt}`}>AI Advisor</p>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={getAIAdvice}
-                    disabled={aiLoading}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${bdr} ${sub} hover:${txt} transition-all disabled:opacity-40`}
-                  >
-                    <RefreshCw
-                      size={11}
-                      className={aiLoading ? "animate-spin" : ""}
-                    />
-                    {aiLoading ? "Analyzing..." : "Refresh"}
+                  <div className="flex items-center gap-2">
+                    <Cpu size={13} style={{ color: accent }} />
+                    <p className="text-sm font-bold" style={{ color: txt }}>AI Advisor</p>
+                  </div>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={getAIAdvice} disabled={aiLoading}
+                                 style={{ background: inputBg, border: `1px solid ${bdr}`, color: sub,
+                                           padding: "4px 10px", borderRadius: 6, fontSize: 11 }}
+                                 className="flex items-center gap-1 disabled:opacity-40">
+                    <RefreshCw size={10} className={aiLoading ? "animate-spin" : ""} />
+                    {aiLoading ? "ANALYZING" : "REFRESH"}
                   </motion.button>
                 </div>
-                <p className={`text-xs ${sub} mb-3`}>
-                  AI-powered recommendations
-                </p>
-
+                <p className="text-xs mb-3" style={{ color: sub }}>AI-powered recommendations</p>
                 {advice || aiLoading ? (
-                  <div
-                    className={`${dark ? "bg-[#0f1117]" : "bg-gray-50"} rounded-lg p-3`}
-                  >
-                    <p
-                      className={`text-xs font-semibold uppercase tracking-widest ${sub} mb-2`}
-                    >
+                  <div style={{ background: inputBg, borderRadius: 8 }} className="p-3 flex-1">
+                    <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: sub }}>
                       {mode.toUpperCase()} ANALYSIS
                     </p>
-                    {aiLoading && !advice ? (
-                      <p className={`text-xs ${sub} animate-pulse`}>
-                        Analyzing city infrastructure...
-                      </p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {advice
-                          .split("\n")
-                          .filter((l) => l.trim())
-                          .slice(0, 4)
-                          .map((line, i) => (
+                    {aiLoading && !advice
+                      ? <p className="text-xs animate-pulse" style={{ color: sub }}>Analyzing city infrastructure...</p>
+                      : <div className="flex flex-col gap-2">
+                          {advice.split("\n").filter((l) => l.trim()).slice(0, 4).map((line, i) => (
                             <div key={i} className="flex gap-2 text-xs">
-                              <span className="w-4 h-4 rounded-full bg-green-500/20 text-green-400 flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5">
-                                {i + 1}
-                              </span>
-                              <span className={`${txt} leading-relaxed`}>
-                                {line
-                                  .replace(/^\d+\.\s*/, "")
-                                  .replace(/^\*+\s*/, "")}
+                              <span className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5"
+                                    style={{ background: `${accent}20`, color: accent }}>{i + 1}</span>
+                              <span style={{ color: txt, lineHeight: 1.5 }}>
+                                {line.replace(/^\d+\.\s*/, "").replace(/^\*+\s*/, "")}
                               </span>
                             </div>
                           ))}
-                      </div>
-                    )}
+                        </div>
+                    }
                   </div>
                 ) : (
-                  <p className={`text-xs ${sub}`}>
-                    Click Refresh for real-time recommendations.
-                  </p>
+                  <p className="text-xs" style={{ color: sub }}>Click REFRESH for real-time recommendations.</p>
                 )}
               </div>
 
-              {/* Alert Log */}
-              <div className={`${card} border ${bdr} rounded-xl p-4`}>
+              {/* Alert log */}
+              <div style={{ background: card, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                   className="p-4 flex-shrink-0">
                 <div className="flex items-center justify-between mb-3">
-                  <p className={`text-sm font-semibold ${txt}`}>Alert Log</p>
-                  <span className={`text-xs ${sub}`}>
-                    {alerts.length} events
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Shield size={13} style={{ color: criticalCount > 0 ? "#ef4444" : sub }} />
+                    <p className="text-sm font-bold" style={{ color: txt }}>Alert Log</p>
+                  </div>
+                  <span className="text-xs" style={{ color: sub }}>{alerts.length} events</span>
                 </div>
-                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                <div className="flex flex-col gap-2 max-h-36 overflow-y-auto">
                   <AnimatePresence>
-                    {alerts.length === 0 ? (
-                      <p className={`text-xs ${sub}`}>No alerts yet...</p>
-                    ) : (
-                      alerts.map((a, i) => (
-                        <motion.div
-                          key={a.id + a.ts}
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={`flex justify-between text-xs ${dark ? "bg-[#0f1117]" : "bg-gray-50"} rounded-lg px-3 py-2`}
-                        >
-                          <span
-                            className={
-                              a.load > 90 ? "text-red-400" : "text-orange-400"
-                            }
-                          >
-                            {a.label}
-                          </span>
-                          <span className={sub}>{a.time}</span>
+                    {alerts.length === 0
+                      ? <p className="text-xs" style={{ color: sub }}>No alerts yet.</p>
+                      : alerts.map((a) => (
+                        <motion.div key={a.id + a.ts}
+                                    initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
+                                    style={{ background: inputBg, borderRadius: 6, padding: "6px 10px" }}
+                                    className="flex justify-between text-xs">
+                          <span style={{ color: a.load > 90 ? "#ef4444" : "#f59e0b" }}>{a.label}</span>
+                          <span style={{ color: sub }}>{a.time}</span>
                         </motion.div>
                       ))
-                    )}
+                    }
                   </AnimatePresence>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* ── Mode-specific alert banner ─────────────────────────────── */}
+          {renderAlertBanner()}
+        </main>
       </div>
     </div>
   );

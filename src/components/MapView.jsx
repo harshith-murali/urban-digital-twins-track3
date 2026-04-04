@@ -23,6 +23,18 @@ function StableView({ center, zoom }) {
 }
 
 export default function MapView({ nodes, edges, path, onNodeClick }) {
+  // ── Cleanup ref: destroy Leaflet instance on unmount ─────────────────────
+  // Prevents "Map container is being reused by another instance" on hot-reload
+  const mapRef = useRef(null);
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
   const pathCoords = path
     .map((id) => nodes.find((n) => n.id === id))
     .filter(Boolean)
@@ -40,18 +52,13 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
     return "#4b5563";
   };
 
-  // A signature string that changes whenever any node's blocked state changes.
-  // Used to force-remount CircleMarkers so Leaflet picks up the new colors.
-  const blockedSignature = nodes.map((n) => `${n.id}:${n.isBlocked ? 1 : 0}`).join(",");
-
-  // Same for edges
-  const edgeSignature = edges.map((e) => `${e.from}-${e.to}:${e.isBlocked ? 1 : 0}`).join(",");
-
   return (
     <MapContainer
       center={[12.97, 77.62]}
       zoom={11}
       style={{ height: "100%", width: "100%" }}
+      // ── Store the Leaflet map instance so we can remove() it on unmount ──
+      ref={mapRef}
     >
       <StableView center={[12.97, 77.62]} zoom={11} />
 
@@ -60,14 +67,16 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
 
-      {/* Road edges — key includes blocked state so Leaflet redraws on flood */}
-      {edges.map((edge, i) => {
+      {/* Road edges ─────────────────────────────────────────────────────── */}
+      {/* Key only uses the edge's own blocked state — not the whole graph signature.
+          Changing one edge no longer remounts every other edge. */}
+      {edges.map((edge) => {
         const from = nodes.find((n) => n.id === edge.from);
         const to   = nodes.find((n) => n.id === edge.to);
         if (!from || !to) return null;
         return (
           <Polyline
-            key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? "blocked" : "open"}-${edgeSignature}`}
+            key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}`}
             positions={[[from.lat, from.lng], [to.lat, to.lng]]}
             color={getEdgeColor(edge)}
             weight={edge.isBlocked ? 4 : 2}
@@ -76,7 +85,7 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
         );
       })}
 
-      {/* Shortest / evacuation path */}
+      {/* Shortest / evacuation path ─────────────────────────────────────── */}
       {pathCoords.length >= 2 && (
         <Polyline
           key={`path-${path.join("-")}`}
@@ -87,16 +96,17 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
         />
       )}
 
-      {/* City nodes — key includes isBlocked + load bucket so Leaflet re-creates
-          the marker whenever its visual state changes */}
+      {/* City nodes ──────────────────────────────────────────────────────── */}
+      {/* Key only contains THIS node's own state — not the whole graph signature.
+          One node flooding no longer remounts every other marker. */}
       {nodes.map((node) => {
-        const color    = getNodeColor(node);
-        const isOnPath = path.includes(node.id);
+        const color      = getNodeColor(node);
+        const isOnPath   = path.includes(node.id);
         const loadBucket = node.load > 80 ? "hi" : node.load > 60 ? "mid" : "lo";
 
         return (
           <CircleMarker
-            key={`${node.id}-${node.isBlocked ? "blocked" : loadBucket}-${isOnPath ? "path" : "nopath"}-${blockedSignature}`}
+            key={`${node.id}-${node.isBlocked ? 1 : 0}-${loadBucket}-${isOnPath ? 1 : 0}`}
             center={[node.lat, node.lng]}
             radius={isOnPath ? 15 : 12}
             pathOptions={{
