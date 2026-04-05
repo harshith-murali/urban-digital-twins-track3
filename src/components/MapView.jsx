@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -19,7 +19,7 @@ function StableView({ center, zoom }) {
       map.setView(center, zoom);
       initialised.current = true;
     }
-  }, []);
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -27,22 +27,31 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
   const mapRef = useRef(null);
   const [roadCoords, setRoadCoords] = useState([]);
 
+  const straightRoadCoords = useMemo(() => {
+    if (path.length < 2 || mode === "traffic" || mode === "disaster") return [];
+    return path
+      .map((id) => nodes.find((n) => n.id === id))
+      .filter(Boolean)
+      .map((n) => [n.lat, n.lng]);
+  }, [path, nodes, mode]);
+
+  const displayedRoadCoords = path.length < 2 ? [] : (mode === "traffic" || mode === "disaster" ? roadCoords : straightRoadCoords);
+
   useEffect(() => {
-    if (path.length < 2) {
-      setRoadCoords([]);
-      return;
-    }
+    if (path.length < 2 || (mode !== "traffic" && mode !== "disaster")) return;
 
     const waypoints = path
       .map((id) => nodes.find((n) => n.id === id))
       .filter(Boolean)
       .map((n) => [n.lat, n.lng]);
 
-    if (mode === "traffic" || mode === "disaster") {
-      fetchRoadPath(waypoints).then(setRoadCoords);
-    } else {
-      setRoadCoords(waypoints);
-    }
+    let active = true;
+    fetchRoadPath(waypoints).then((coords) => {
+      if (active) setRoadCoords(coords);
+    });
+    return () => {
+      active = false;
+    };
   }, [path, nodes, mode]);
 
   useEffect(() => {
@@ -132,12 +141,12 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
         <>
           <Polyline
             key={`path-outline-${path.join("-")}`}
-            positions={roadCoords}
+            positions={displayedRoadCoords}
             pathOptions={{ color: "#ffffff", weight: 8, opacity: 0.3 }}
           />
           <Polyline
             key={`path-${path.join("-")}`}
-            positions={roadCoords}
+            positions={displayedRoadCoords}
             pathOptions={{ color: "#facc15", weight: 5, opacity: 1 }}
           />
         </>

@@ -195,7 +195,7 @@ export default function OverviewPage({
               onClick={runAutoRoute}
               style={{ fontSize: 11, fontFamily: fontBody, padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${bdr}`, background: inputBg, color: sub, cursor: "pointer" }}
             >
-              Run Dijkstra's
+              {"Run Dijkstra's"}
             </button>
           </div>
 
@@ -243,7 +243,7 @@ export default function OverviewPage({
               <p style={{ fontSize: 13, fontWeight: 500, color: txt }}>System status</p>
             </div>
             <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-              {SYSTEM_STATUSES.map((s) => (
+              {systemLegend.map((s) => (
                 <div
                   key={s.label}
                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 9px", background: inputBg, borderRadius: 6 }}
