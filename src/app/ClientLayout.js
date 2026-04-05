@@ -18,6 +18,8 @@ export default function RootLayout({ children }) {
   const pathname = usePathname();
   const router   = useRouter();
 
+  const isAuthPage = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+
   // Derive mode & page from URL
   const page = pathname.replace("/", "") || "overview";
   const mode = ["traffic","energy","water","disaster"].includes(page) ? page : "traffic";
@@ -99,6 +101,18 @@ export default function RootLayout({ children }) {
     { label: "Water",    val: water.burstActive     ? 40 : 80,                    color: "#185FA5" },
     { label: "Disaster", val: disaster.floodActive  ? 25 : 85,                    color: "#A32D2D" },
   ];
+
+  if (isAuthPage) {
+    return (
+      <html lang="en">
+        <body style={{ background: theme.bg, color: theme.txt, minHeight: "100vh",
+                       fontFamily: theme.fontBody, margin: 0,
+                       display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {children}
+        </body>
+      </html>
+    );
+  }
 
   return (
     <html lang="en">
