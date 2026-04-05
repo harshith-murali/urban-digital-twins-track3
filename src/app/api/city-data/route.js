@@ -12,7 +12,7 @@
  * dashboard always has a warm function instance.
  */
 
-import { tick } from "../../lib/simulator.js";
+import { tick } from "@/lib/simulator.js";
 
 export async function POST(request) {
   try {
