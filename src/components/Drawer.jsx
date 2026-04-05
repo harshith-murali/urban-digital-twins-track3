@@ -1,7 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity, Zap, Droplets, AlertTriangle } from "lucide-react";
 import { MODES } from "../app/constants/modes.js";
+import { useSubscription, PLAN_META, planMeetsRequirement } from "../app/context/SubscriptionContext";
 
 export default function Drawer({
   theme,
@@ -18,7 +20,11 @@ export default function Drawer({
   healthData,
   onClose,
 }) {
-  const { sideBg, bdr, sub, txt, fontBody, fontMono } = theme;
+  const { sideBg, bdr, sub, txt, fontBody, fontMono, dark, card, inputBg } = theme;
+  const { plan } = useSubscription();
+  const planMeta = PLAN_META[plan];
+  const router = useRouter();
+  const isPaid = planMeetsRequirement(plan, "starter");
 
   const DRAWER_ITEMS = [
     {
@@ -231,6 +237,46 @@ export default function Drawer({
                   </div>
                 </div>
               ))}
+            </div>
+            {/* Plan card at bottom */}
+            <div style={{ marginTop: "auto", paddingTop: 10 }}>
+              <div
+                style={{
+                  padding: "10px 10px",
+                  borderRadius: 8,
+                  background: planMeta.bg,
+                  border: `0.5px solid ${planMeta.border}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{planMeta.emoji}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: planMeta.color, letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                    {planMeta.label} Plan
+                  </span>
+                </div>
+                {!isPaid ? (
+                  <>
+                    <p style={{ fontSize: 10, color: sub, margin: "0 0 7px", lineHeight: 1.4 }}>
+                      Unlock AI Advisor, analytics & more.
+                    </p>
+                    <button
+                      onClick={() => { router.push("/pricing"); onClose(); }}
+                      style={{
+                        width: "100%", padding: "5px 0", borderRadius: 6,
+                        background: "#639922", border: "none", color: "#fff",
+                        fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        fontFamily: fontBody,
+                      }}
+                    >
+                      Upgrade ↗
+                    </button>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 10, color: planMeta.color, margin: 0, fontWeight: 500 }}>
+                    Premium features active ✓
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </motion.nav>
