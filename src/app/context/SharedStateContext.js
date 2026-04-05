@@ -15,7 +15,6 @@ export const useSharedState = () => useContext(SharedStateContext);
 export function SharedStateProvider({ children }) {
   const [mode, setMode]   = useState("traffic");
   const [graph, setGraph] = useState(cloneGraph(cityGraph));
-  const [theme, setTheme] = useState("dark");
   const [dark,  setDark]  = useState(true);
 
   const currentMode = MODES.find((m) => m.id === mode) ?? MODES[0];
@@ -23,7 +22,6 @@ export function SharedStateProvider({ children }) {
 
   // ── Core shared hooks ──────────────────────────────────────────────────────
   const { alerts, addAlert, clearModeAlerts } = useAlerts(graph, mode);
-
   const routing = useRouting(graph, currentMode);
 
   // ── Domain slices ──────────────────────────────────────────────────────────
@@ -52,7 +50,7 @@ export function SharedStateProvider({ children }) {
   useEffect(() => {
     setGraph(cloneGraph(cityGraph));
     routing.clearPath();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
@@ -61,6 +59,14 @@ export function SharedStateProvider({ children }) {
     graph.nodes.reduce((s, n) => s + (n.load ?? 0), 0) / (graph.nodes.length || 1)
   );
   const criticalCount = alerts.filter((a) => a.load > 90).length;
+
+  // ── Live health data — defined after all hooks ─────────────────────────────
+  const healthData = [
+    { label: "Traffic",  val: avgLoad,                          color: "#3B6D11" },
+    { label: "Energy",   val: energy.avgStationLoad ?? avgLoad, color: "#BA7517" },
+    { label: "Water",    val: water.avgPressure ?? 72,          color: "#38bdf8" },
+    { label: "Disaster", val: disaster.avgRisk ?? 20,           color: "#E24B4A" },
+  ];
 
   // ── Theme tokens ───────────────────────────────────────────────────────────
   const themeTokens = dark
@@ -110,8 +116,9 @@ export function SharedStateProvider({ children }) {
     // derived
     avgLoad,
     blockedCount,
+    healthData,
 
-    // slices — kept nested so buildPageProps can destructure them
+    // slices
     routing,
     energy,
     water,
