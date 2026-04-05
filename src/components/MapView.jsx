@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -81,32 +81,10 @@ export default function MapView({
     return "#22c55e";
   };
 
-  const getEdgeStyle = (edge) => {
-    if (mode === "energy") {
-      return {
-        color:        edge.isBlocked ? "#3b82f6" : "#facc15",
-        weight:       edge.isBlocked ? 4 : 3,
-        opacity:      edge.isBlocked ? 1 : 0.95,
-        dashArray:    edge.isBlocked ? null : "8 3",
-        outlineColor: edge.isBlocked ? "rgba(59,130,246,0.35)" : "rgba(250,204,21,0.35)",
-        outlineWeight: edge.isBlocked ? 7 : 8,
-      };
-    }
-    if (mode === "water") {
-      return {
-        color:        edge.isBlocked ? "#3b82f6" : "#38bdf8",
-        weight:       3,
-        opacity:      0.9,
-        dashArray:    "2 3",
-        outlineColor: edge.isBlocked ? "rgba(59,130,246,0.35)" : "rgba(56,189,248,0.35)",
-        outlineWeight: 8,
-      };
-    }
-    return {
-      color:   edge.isBlocked ? "#3b82f6" : "#4b5563",
-      weight:  edge.isBlocked ? 4 : 2,
-      opacity: edge.isBlocked ? 0.9 : 0.6,
-    };
+  const getEdgeStyle = (edge, isOnPath) => {
+    if (edge.isBlocked) return { color: "#3b82f6", weight: 2, opacity: 0.85 };
+    if (isOnPath)       return { color: "#facc15", weight: 3, opacity: 1 };
+    return               { color: "#1a1a1a",   weight: 1.5, opacity: 0.55 };
   };
 
   return (
@@ -129,28 +107,25 @@ export default function MapView({
           const from = nodes.find((n) => n.id === edge.from);
           const to   = nodes.find((n) => n.id === edge.to);
           if (!from || !to) return null;
-          const style = getEdgeStyle(edge);
-          const outlineColor   = style.outlineColor  ?? "#ffffff";
-          const outlineWeight  = style.outlineWeight ?? (style.weight + 2);
-          const outlineOpacity = style.outlineColor ? 1 : 0.35;
+
+          // Edge is "on path" if both its endpoints appear consecutively in path
+          const fromIdx = path.indexOf(edge.from);
+          const isOnPath = fromIdx !== -1 && path[fromIdx + 1] === edge.to;
+
+          const style = getEdgeStyle(edge, isOnPath);
           return (
-            <Fragment key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}>
-              <Polyline
-                positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-                pathOptions={{ color: outlineColor, weight: outlineWeight, opacity: outlineOpacity, ...(style.dashArray ? { dashArray: style.dashArray } : {}) }}
-              />
-              <Polyline
-                positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-                pathOptions={{
-                  color:   style.color,
-                  weight:  style.weight,
-                  opacity: style.opacity,
-                  ...(style.dashArray ? { dashArray: style.dashArray } : {}),
-                }}
-              />
-            </Fragment>
+            <Polyline
+              key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${isOnPath ? 1 : 0}-${mode}`}
+              positions={[[from.lat, from.lng], [to.lat, to.lng]]}
+              pathOptions={{
+                color:   style.color,
+                weight:  style.weight,
+                opacity: style.opacity,
+              }}
+            />
           );
         })}
+
 
         {/* Path overlay */}
         {displayedRoadCoords.length >= 2 && (

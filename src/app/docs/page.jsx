@@ -1,4 +1,6 @@
 "use client";
+import { useContext } from "react";
+import { SharedStateContext } from "@/app/context/SharedStateContext";
 
 const ENDPOINTS = [
   {
@@ -36,86 +38,106 @@ const ENDPOINTS = [
 ];
 
 export default function DocsPage() {
+  const ctx = useContext(SharedStateContext);
+  const theme = ctx?.theme ?? { card: "#fff", bdr: "#e5e7eb", inputBg: "#f8f9fa", sub: "#6b7280", txt: "#111827", fontBody: "DM Sans, sans-serif", fontMono: "DM Mono, monospace", dark: false, bg: "#f5f6fa" };
+  const { card, bdr, inputBg, sub, txt, fontBody, fontMono, dark, bg } = theme;
+
+  const codeBg = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const codeBorder = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+
   return (
-    <div style={{
-      minHeight: "100vh", padding: "60px 40px",
-      background: "linear-gradient(160deg, #0a0f1a 0%, #0d1a0a 100%)",
-      fontFamily: "'DM Sans', sans-serif",
-    }}>
-      {/* Header */}
+    <div style={{ minHeight: "100%", padding: "48px 40px", background: bg, fontFamily: fontBody }}>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        {/* Header */}
         <div style={{
-          display: "inline-block", padding: "4px 14px", borderRadius: 20,
-          background: "rgba(24,95,165,0.12)", border: "0.5px solid rgba(24,95,165,0.3)",
-          fontSize: 11, fontWeight: 700, color: "#185FA5", letterSpacing: "0.5px",
-          marginBottom: 16, textTransform: "uppercase",
+          display: "inline-block", padding: "3px 12px", borderRadius: 20,
+          background: dark ? "rgba(24,95,165,0.12)" : "#E6F1FB",
+          border: "0.5px solid rgba(24,95,165,0.3)",
+          fontSize: 10, fontWeight: 700, color: "#185FA5", letterSpacing: "0.5px",
+          marginBottom: 14, textTransform: "uppercase",
         }}>
           API Reference · v1.0
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: "#fff", margin: "0 0 12px", letterSpacing: "-0.8px" }}>
+        <h1 style={{ fontSize: 30, fontWeight: 800, color: txt, margin: "0 0 10px", letterSpacing: "-0.6px" }}>
           UrbanTwins API
         </h1>
-        <p style={{ fontSize: 15, color: "rgba(232,234,240,0.55)", marginBottom: 40 }}>
+        <p style={{ fontSize: 14, color: sub, marginBottom: 36, lineHeight: 1.6 }}>
           Integrate real-time city infrastructure data into your own systems. All endpoints are REST-based and return JSON.
         </p>
 
         {/* Auth note */}
         <div style={{
-          background: "rgba(186,117,23,0.08)", border: "0.5px solid rgba(186,117,23,0.3)",
-          borderRadius: 12, padding: "14px 18px", marginBottom: 40,
-          fontSize: 13, color: "rgba(232,234,240,0.7)",
+          background: dark ? "rgba(186,117,23,0.08)" : "#FAEEDA",
+          border: "0.5px solid rgba(186,117,23,0.3)",
+          borderRadius: 10, padding: "12px 16px", marginBottom: 36,
+          fontSize: 13, color: sub,
         }}>
           <span style={{ fontWeight: 700, color: "#BA7517" }}>Authentication: </span>
-          Include your API key in the request header: <code style={{ background: "rgba(255,255,255,0.06)", padding: "2px 6px", borderRadius: 4, fontFamily: "DM Mono, monospace" }}>Authorization: Bearer &lt;your_api_key&gt;</code>
+          Include your API key in the request header:{" "}
+          <code style={{ background: codeBg, padding: "2px 6px", borderRadius: 4, fontFamily: fontMono, fontSize: 12 }}>
+            Authorization: Bearer &lt;your_api_key&gt;
+          </code>
         </div>
 
         {/* Base URL */}
-        <div style={{ marginBottom: 40 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.4)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Base URL</div>
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: sub, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
+            Base URL
+          </div>
           <code style={{
-            display: "block", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)",
-            borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#639922",
-            fontFamily: "DM Mono, monospace",
+            display: "block", background: codeBg,
+            border: `0.5px solid ${codeBorder}`,
+            borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "#639922",
+            fontFamily: fontMono,
           }}>
             https://api.urbantwins.io/v1
           </code>
         </div>
 
         {/* Endpoints */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {ENDPOINTS.map((ep) => (
             <div
               key={ep.path}
               style={{
-                background: "rgba(255,255,255,0.02)", border: "0.5px solid rgba(255,255,255,0.07)",
-                borderRadius: 12, overflow: "hidden",
+                background: card,
+                border: `0.5px solid ${bdr}`,
+                borderRadius: 10, overflow: "hidden",
               }}
             >
-              <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14, borderBottom: ep.body ? "0.5px solid rgba(255,255,255,0.05)" : "none" }}>
+              <div style={{
+                padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12,
+                borderBottom: ep.body ? `0.5px solid ${bdr}` : "none",
+              }}>
                 <span style={{
-                  flexShrink: 0, padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  background: `${ep.color}18`, color: ep.color, fontFamily: "DM Mono, monospace",
-                  letterSpacing: "0.3px",
+                  flexShrink: 0, padding: "2px 7px", borderRadius: 5, fontSize: 10, fontWeight: 700,
+                  background: dark ? `${ep.color}20` : `${ep.color}15`,
+                  color: ep.color, fontFamily: fontMono, letterSpacing: "0.3px",
                 }}>
                   {ep.method}
                 </span>
                 <div>
-                  <code style={{ fontSize: 14, color: "#e8eaf0", fontFamily: "DM Mono, monospace" }}>{ep.path}</code>
-                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(232,234,240,0.5)" }}>{ep.description}</p>
+                  <code style={{ fontSize: 13, color: txt, fontFamily: fontMono }}>{ep.path}</code>
+                  <p style={{ margin: "5px 0 0", fontSize: 12, color: sub, lineHeight: 1.5 }}>{ep.description}</p>
                 </div>
               </div>
               {ep.body && (
-                <div style={{ padding: "12px 18px", background: "rgba(0,0,0,0.2)" }}>
-                  <div style={{ fontSize: 11, color: "rgba(232,234,240,0.35)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Request Body</div>
-                  <code style={{ fontSize: 13, color: "#97C459", fontFamily: "DM Mono, monospace" }}>{ep.body}</code>
+                <div style={{ padding: "10px 16px", background: inputBg }}>
+                  <div style={{ fontSize: 10, color: sub, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Request Body
+                  </div>
+                  <code style={{ fontSize: 12, color: "#639922", fontFamily: fontMono }}>{ep.body}</code>
                 </div>
               )}
             </div>
           ))}
         </div>
 
-        <p style={{ marginTop: 48, fontSize: 13, color: "rgba(232,234,240,0.3)", textAlign: "center" }}>
-          Need help? Contact <a href="mailto:api@urbantwins.io" style={{ color: "#639922", textDecoration: "none" }}>api@urbantwins.io</a>
+        <p style={{ marginTop: 44, fontSize: 12, color: sub, textAlign: "center" }}>
+          Need help? Contact{" "}
+          <a href="mailto:api@urbantwins.io" style={{ color: "#639922", textDecoration: "none" }}>
+            api@urbantwins.io
+          </a>
         </p>
       </div>
     </div>

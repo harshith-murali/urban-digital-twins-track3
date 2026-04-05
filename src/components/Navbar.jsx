@@ -79,14 +79,10 @@ export default function Navbar({
         </svg>
         <span style={{
           fontSize: 15, fontWeight: 700, fontFamily: fontBody,
-          background: theme.dark
-            ? "linear-gradient(135deg, #97C459 0%, #639922 100%)"
-            : "linear-gradient(135deg, #3B6D11 0%, #639922 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
+          color: theme.dark ? "#97C459" : "#3B6D11",
           letterSpacing: "-0.3px",
         }}>
-          Urban<span style={{ fontWeight: 400 }}>Twins</span>
+          Urban<span style={{ fontWeight: 400, color: theme.dark ? "#639922" : "#5a9b1a" }}>Twins</span>
         </span>
         <div
           style={{
@@ -107,9 +103,9 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Page tabs */}
+      {/* Page tabs — exclude pricing/docs (shown on right) */}
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 8 }}>
-        {PAGES.map((p) => (
+        {PAGES.filter((p) => p !== "pricing" && p !== "docs").map((p) => (
           <button
             key={p}
             onClick={() => handlePageClick(p)}
@@ -129,6 +125,26 @@ export default function Navbar({
 
       {/* Right controls */}
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Pricing & Docs links */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2, borderRight: `0.5px solid ${bdr}`, paddingRight: 10, marginRight: 2 }}>
+          {["pricing", "docs"].map((p) => (
+            <button
+              key={p}
+              onClick={() => handlePageClick(p)}
+              style={{
+                fontSize: 11, padding: "4px 9px", borderRadius: 6, border: "none",
+                background: page === p ? (theme.dark ? "rgba(59,109,17,0.15)" : "#EAF3DE") : "none",
+                color: page === p ? (theme.dark ? "#97C459" : "#27500A") : sub,
+                fontWeight: page === p ? 600 : 400,
+                cursor: "pointer", fontFamily: fontBody,
+                transition: "all .12s", textTransform: "capitalize",
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
         {/* Clock */}
         <span
           style={{
