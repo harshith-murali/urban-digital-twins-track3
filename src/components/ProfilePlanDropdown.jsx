@@ -4,62 +4,149 @@ import { UserButton } from "@clerk/nextjs";
 import { useSubscription, PLAN_META, PLAN_ORDER } from "@/app/context/SubscriptionContext";
 
 /**
- * Renders Clerk's UserButton with a custom menu item showing the user's
- * subscription plan. When clicked, it navigates to the pricing page.
- * No separate dropdown — everything lives inside Clerk's built-in menu
- * alongside "Manage account" and "Sign out".
+ * Clerk UserButton with a custom "Subscription" page inside the profile modal.
+ * - "See your current plan" menu item opens the plan details page
+ * - Plan details page shows current plan + "Change plans" button → /pricing
  */
-export default function ProfilePlanDropdown({ theme, setPage }) {
+export default function ProfilePlanDropdown({ theme }) {
   const { plan } = useSubscription();
   const router = useRouter();
-
   const meta = PLAN_META[plan];
-  const isTopTier = plan === "enterprise";
-  const nextPlan = !isTopTier ? PLAN_ORDER[PLAN_ORDER.indexOf(plan) + 1] : null;
-  const nextMeta = nextPlan ? PLAN_META[nextPlan] : null;
-
-  const planLabel = `${meta.emoji} ${meta.label} Plan`;
-  const upgradeLabel = nextMeta
-    ? `Upgrade to ${nextMeta.label}`
-    : "🏆 Top tier active";
 
   return (
     <UserButton>
-      <UserButton.MenuItems>
-        {/* Current plan display */}
-        <UserButton.Action
-          label={planLabel}
-          labelIcon={<PlanIcon color={meta.color} />}
-          onClick={() => router.push("/pricing")}
-        />
-        {/* Upgrade CTA (or top-tier message) */}
-        {nextMeta && (
-          <UserButton.Action
-            label={upgradeLabel}
-            labelIcon={<UpgradeIcon color={nextMeta.color} />}
-            onClick={() => router.push("/pricing")}
-          />
-        )}
-      </UserButton.MenuItems>
+      <UserButton.UserProfilePage
+        label="Subscription"
+        labelIcon={<PlanDotIcon color={meta.color} />}
+        url="subscription"
+      >
+        <SubscriptionPage plan={plan} meta={meta} router={router} />
+      </UserButton.UserProfilePage>
     </UserButton>
   );
 }
 
-/** Tiny colored dot icon for the plan row */
-function PlanIcon({ color }) {
+/** The custom page rendered inside Clerk's profile modal */
+function SubscriptionPage({ plan, meta, router }) {
+  const isPaid = plan !== "free";
+  const nextPlan = plan !== "enterprise"
+    ? PLAN_ORDER[PLAN_ORDER.indexOf(plan) + 1]
+    : null;
+  const nextMeta = nextPlan ? PLAN_META[nextPlan] : null;
+
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5" fill={color} opacity="0.9" />
-      <circle cx="7" cy="7" r="3" fill="#fff" opacity="0.35" />
-    </svg>
+    <div style={{ padding: "4px 0" }}>
+      <h1 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px", color: "#111827" }}>
+        Your Subscription
+      </h1>
+      <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 20px" }}>
+        Manage your UrbanTwins subscription plan.
+      </p>
+
+      {/* Current plan card */}
+      <div
+        style={{
+          padding: "16px 18px",
+          borderRadius: 12,
+          background: meta.bg,
+          border: `1.5px solid ${meta.border}`,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: meta.color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontSize: 18,
+            }}
+          >
+            {meta.emoji}
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: meta.color, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              {meta.label} Plan
+            </div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginTop: 1 }}>
+              {isPaid ? "Active subscription" : "No active subscription"}
+            </div>
+          </div>
+        </div>
+
+        {/* Plan-specific perks */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10,
+        }}>
+          {getPlanPerks(plan).map((perk) => (
+            <span
+              key={perk}
+              style={{
+                fontSize: 11, padding: "3px 9px", borderRadius: 20,
+                background: "rgba(255,255,255,0.6)",
+                border: `0.5px solid ${meta.border}`,
+                color: meta.color, fontWeight: 500,
+              }}
+            >
+              {perk}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Change plans button */}
+      <button
+        onClick={() => router.push("/pricing")}
+        style={{
+          width: "100%",
+          padding: "10px 0",
+          borderRadius: 8,
+          background: "#111827",
+          border: "none",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#1f2937")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#111827")}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7h8M8 4l3 3-3 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Change plans
+      </button>
+
+      {/* Info text */}
+      {isPaid && (
+        <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 12, lineHeight: 1.5, textAlign: "center" }}>
+          Your plan resets when you sign out. Upgrade anytime from the pricing page.
+        </p>
+      )}
+    </div>
   );
 }
 
-/** Small lightning bolt icon for upgrade row */
-function UpgradeIcon({ color }) {
+function getPlanPerks(plan) {
+  const perks = {
+    free:       ["Map view", "Traffic mode", "Disaster mode", "Basic alerts"],
+    starter:    ["CSV export", "Route history", "Email support", "99.5% SLA"],
+    city:       ["AI Advisor", "5 zones", "Full analytics", "Priority support"],
+    enterprise: ["Unlimited zones", "White-label", "API access", "RBAC & SSO"],
+  };
+  return perks[plan] ?? perks.free;
+}
+
+function PlanDotIcon({ color }) {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M8 1L3 8h3.5L5 13l6-7H7.5L9.5 1H8z" fill={color} opacity="0.9" />
+      <circle cx="7" cy="7" r="5" fill={color} opacity="0.85" />
+      <circle cx="7" cy="7" r="2.5" fill="#fff" opacity="0.4" />
     </svg>
   );
 }

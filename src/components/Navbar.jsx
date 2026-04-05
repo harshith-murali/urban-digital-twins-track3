@@ -208,7 +208,7 @@ export default function Navbar({
         </button>
 
         {/* Profile + plan dropdown */}
-        <ProfilePlanDropdown theme={theme} setPage={setPage} />
+        <ProfilePlanDropdown theme={theme} />
       </div>
     </header>
   );
