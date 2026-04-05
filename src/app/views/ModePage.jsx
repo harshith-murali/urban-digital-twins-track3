@@ -143,7 +143,7 @@ export default function ModePage({
           </div>
 
           {/* Map */}
-          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
             <MapView
               nodes={graph.nodes}
               edges={graph.edges}
@@ -151,7 +151,38 @@ export default function ModePage({
               onNodeClick={onNodeClick}
               mode={mode}
             />
+            {/* Empty state hint — shown when no route and no first node selected */}
+            {path.length === 0 && !start && (
+              <div style={{
+                position: "absolute", top: "50%", left: "50%",
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "none", zIndex: 1000, textAlign: "center",
+              }}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 }}
+                  style={{
+                    background: "rgba(18,22,34,0.82)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 14,
+                    padding: "12px 20px",
+                    display: "flex", alignItems: "center", gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>🗺️</span>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e8eaf0" }}>Click a node to start routing</div>
+                    <div style={{ fontSize: 11, color: "rgba(232,234,240,0.55)", marginTop: 2 }}>
+                      Select origin → destination to run Dijkstra's
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
           </div>
+
 
           {/* Path error bar */}
           <AnimatePresence>

@@ -10,6 +10,7 @@ import { useDisasterMode } from "@/app/hooks/useDisasterMode";
 import { useEnergyMode }   from "@/app/hooks/useEnergyMode";
 import { useWaterMode }    from "@/app/hooks/useWaterMode";
 import { useRouting }      from "@/app/hooks/useRouting.js";
+import { useToast, ToastContainer } from "@/components/Toast";
 import Navbar from "@/components/Navbar";
 import Drawer from "@/components/Drawer";
 import { SharedStateContext } from "@/app/context/SharedStateContext";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
 
   const theme = buildTheme(dark);
 
+  const { toasts, toast, dismiss } = useToast();
   const { alerts, addAlert, clearModeAlerts } = useAlerts(graph, mode);
   const routing = useRouting(graph, currentMode);
   const { clearPath } = routing;
@@ -149,16 +151,23 @@ export default function RootLayout({ children }) {
               alerts, avgLoad, criticalCount,
               activeEdges:   graph.edges.filter((e) => !e.isBlocked).length,
               blockedCount:  graph.nodes.filter((n) => n.isBlocked).length,
-              // needed by OverviewPage via buildPageProps
               avgStationLoad: energy.avgStationLoad,
               burstActive:    water.burstActive,
+              toast,
             }}>
               {children}
             </SharedStateContext.Provider>
           </main>
         </div>
 
-        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }`}</style>
+        <ToastContainer toasts={toasts} dismiss={dismiss} theme={theme} />
+        <style>{`
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+          @keyframes skeleton-shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+        `}</style>
       </body>
     </html>
   );

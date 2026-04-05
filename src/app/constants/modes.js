@@ -43,4 +43,4 @@ export const MODES = [
   },
 ];
 
-export const PAGES = ["overview", "traffic", "energy", "water", "disaster", "analytics"];
+export const PAGES = ["overview", "traffic", "energy", "water", "disaster", "analytics", "pricing", "docs"];
