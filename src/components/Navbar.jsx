@@ -1,7 +1,7 @@
 "use client";
-import { UserButton } from "@clerk/nextjs";
 import { Moon, Sun, Bell, X } from "lucide-react";
 import { PAGES, MODES } from "@/app/constants/modes.js";
+import ProfilePlanDropdown from "@/components/ProfilePlanDropdown";
 
 /**
  * Top navigation bar.
@@ -207,7 +207,8 @@ export default function Navbar({
           {dark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        <UserButton />
+        {/* Profile + plan dropdown */}
+        <ProfilePlanDropdown theme={theme} setPage={setPage} />
       </div>
     </header>
   );

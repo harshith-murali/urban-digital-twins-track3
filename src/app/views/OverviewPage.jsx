@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Badge from "@/components/ui/Badge";
 import Skeleton from "@/components/ui/Skeleton";
 import AIAdvisor from "@/components/AIAdvisor";
+import PlanGate from "@/components/PlanGate";
 import { MODES } from "@/app/constants/modes.js";
 import { useCountUp } from "@/app/hooks/useCountUp";
 
@@ -170,20 +171,23 @@ export default function OverviewPage({
           <span style={{ fontSize: 10, fontWeight: 700, color: "#639922", letterSpacing: "0.3px" }}>SLA 99.2%</span>
         </div>
         {/* Export button */}
-        <button
-          onClick={handleExport}
-          title="Download system report as CSV"
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "4px 10px", borderRadius: 6, fontSize: 11, fontFamily: fontBody,
-            fontWeight: 500, cursor: "pointer",
-            background: dark ? "rgba(255,255,255,0.04)" : inputBg,
-            border: `0.5px solid ${bdr}`, color: sub,
-            transition: "all 0.15s",
-          }}
-        >
-          ↓ Export Report
-        </button>
+        {/* Export button — gated to Starter+ */}
+        <PlanGate minPlan="starter" theme={theme} compact label="Export (Starter+)">
+          <button
+            onClick={handleExport}
+            title="Download system report as CSV"
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 6, fontSize: 11, fontFamily: fontBody,
+              fontWeight: 500, cursor: "pointer",
+              background: dark ? "rgba(255,255,255,0.04)" : inputBg,
+              border: `0.5px solid ${bdr}`, color: sub,
+              transition: "all 0.15s",
+            }}
+          >
+            ↓ Export Report
+          </button>
+        </PlanGate>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: 10, flexShrink: 0 }}>
@@ -382,8 +386,10 @@ export default function OverviewPage({
           </div>
         </div>
 
-        {/* AI Advisor */}
-        <AIAdvisor theme={theme} mode={mode} accent={accent} graph={graph} compact />
+        {/* AI Advisor — gated to City plan */}
+        <PlanGate minPlan="city" theme={theme} label="City plan required for AI Advisor">
+          <AIAdvisor theme={theme} mode={mode} accent={accent} graph={graph} compact />
+        </PlanGate>
 
         {/* Emergency Contacts */}
         <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column" }}>

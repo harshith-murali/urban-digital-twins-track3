@@ -10,7 +10,6 @@ export default function Page() {
       justifyContent: "center",
       position: "relative",
       overflow: "hidden",
-      background: "linear-gradient(135deg, #0a0f1a 0%, #0f1a0a 50%, #0a0f1a 100%)",
     }}>
       {/* Animated background orbs */}
       <div style={{

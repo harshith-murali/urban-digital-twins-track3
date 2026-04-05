@@ -107,9 +107,12 @@ export default function RootLayout({ children }) {
   if (isAuthPage) {
     return (
       <html lang="en">
-        <body style={{ background: theme.bg, color: theme.txt, minHeight: "100vh",
-                       fontFamily: theme.fontBody, margin: 0,
-                       display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <body style={{
+          background: "linear-gradient(135deg, #0a0f1a 0%, #0f1a0a 50%, #0a0f1a 100%)",
+          color: theme.txt, minHeight: "100vh",
+          fontFamily: theme.fontBody, margin: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
           {children}
         </body>
       </html>
