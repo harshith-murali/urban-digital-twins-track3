@@ -1,49 +1,111 @@
-import clientPromise from '@/lib/dbConfig.js'
+/**
+ * GET  /api/incidents?mode=traffic    → list incidents (optionally filtered by mode)
+ * POST /api/incidents                 → create incident
+ *
+ * MongoDB schema:
+ * { _id, mode, zone, severity, timestamp, description, aiAdvice }
+ *
+ * Falls back to in-memory store if MONGODB_URI is not set (hackathon dev mode).
+ */
 
-async function getDB() {
-  const client = await clientPromise
-  return client.db('urbantwins')
+import { MongoClient, ObjectId } from "mongodb";
+
+const MONGODB_URI = process.env.MONGO_URI;
+const DB_NAME     = "urbantwins";
+const COLLECTION  = "incidents";
+
+// In-memory fallback (dev / no-Atlas mode)
+const memoryStore = [];
+
+async function getCollection() {
+  if (!MONGODB_URI) return null;
+  const client = new MongoClient(MONGODB_URI);
+  await client.connect();
+  return { collection: client.db(DB_NAME).collection(COLLECTION), client };
 }
 
-// GET — fetch last 20 incidents
-export async function GET() {
+// ─── GET ──────────────────────────────────────────────────────────────────────
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const mode  = searchParams.get("mode");
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100);
+
+  const conn = await getCollection();
+
+  if (!conn) {
+    // Fallback: return from memory store
+    const filtered = mode
+      ? memoryStore.filter(i => i.mode === mode)
+      : memoryStore;
+    return Response.json({ incidents: filtered.slice(-limit).reverse(), source: "memory" });
+  }
+
+  const { collection, client } = conn;
   try {
-    const db = await getDB()
-    const incidents = await db.collection('incidents')
-      .find({})
+    const query  = mode ? { mode } : {};
+    const docs   = await collection
+      .find(query)
       .sort({ timestamp: -1 })
-      .limit(20)
-      .toArray()
-    return Response.json({ incidents })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+      .limit(limit)
+      .toArray();
+
+    return Response.json({ incidents: docs, source: "mongodb" });
+  } finally {
+    await client.close();
   }
 }
 
-// POST — save new incident
-export async function POST(req) {
-  try {
-    const { mode, zone, severity, load, description } = await req.json()
-    const db = await getDB()
-    const incident = {
-      mode, zone, severity,
-      load, description,
-      timestamp: new Date(),
-    }
-    await db.collection('incidents').insertOne(incident)
-    return Response.json({ success: true, incident })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
-  }
-}
+// ─── POST ─────────────────────────────────────────────────────────────────────
 
-// DELETE — clear all incidents
-export async function DELETE() {
+export async function POST(request) {
+  let body;
   try {
-    const db = await getDB()
-    await db.collection('incidents').deleteMany({})
-    return Response.json({ success: true })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const { mode, zone, severity, description, aiAdvice } = body;
+
+  const VALID_MODES      = ["traffic", "energy", "water", "disaster"];
+  const VALID_SEVERITIES = ["INFO", "WARNING", "CRITICAL"];
+
+  if (!VALID_MODES.includes(mode)) {
+    return Response.json({ error: `Invalid mode: ${mode}` }, { status: 400 });
+  }
+  if (!VALID_SEVERITIES.includes(severity)) {
+    return Response.json({ error: `Invalid severity: ${severity}` }, { status: 400 });
+  }
+  if (!zone || !description) {
+    return Response.json({ error: "zone and description are required" }, { status: 400 });
+  }
+
+  const incident = {
+    mode,
+    zone,
+    severity,
+    description,
+    aiAdvice: aiAdvice ?? null,
+    timestamp: new Date().toISOString(),
+  };
+
+  const conn = await getCollection();
+
+  if (!conn) {
+    // Fallback: persist to memory
+    const saved = { ...incident, _id: `mem_${Date.now()}` };
+    memoryStore.push(saved);
+    if (memoryStore.length > 200) memoryStore.shift(); // cap memory
+    return Response.json({ incident: saved, source: "memory" }, { status: 201 });
+  }
+
+  const { collection, client } = conn;
+  try {
+    const result = await collection.insertOne(incident);
+    const saved  = { ...incident, _id: result.insertedId };
+    return Response.json({ incident: saved, source: "mongodb" }, { status: 201 });
+  } finally {
+    await client.close();
   }
 }

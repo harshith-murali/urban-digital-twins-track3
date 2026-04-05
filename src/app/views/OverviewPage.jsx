@@ -1,19 +1,12 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Sparkles, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import Badge from "@/components/ui/Badge";
 import AIAdvisor from "@/components/AIAdvisor";
-import AlertLog from "@/components/AlertLog";
 import { MODES } from "@/app/constants/modes.js";
-import { parseAdviceLines } from "@/lib/graphUtils";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
-/**
- * The full Overview page layout:
- * 6-stat grid → map + system status + environment → incident log + AI advisor
- */
 export default function OverviewPage({
   theme,
   mode, accent,
@@ -27,12 +20,12 @@ export default function OverviewPage({
   const { card, bdr, inputBg, sub, txt, fontBody, fontMono, dark } = theme;
 
   const STATS_OVERVIEW = [
-    { label: "Vehicles",       value: (2800 + Math.round(avgLoad * 3)).toLocaleString(),          badge: "LIVE",                                       badgeType: "green" },
-    { label: "Avg Speed",      value: `${Math.max(15, 60 - Math.round(avgLoad * 0.4))} km/h`,    badge: avgLoad > 70 ? "-6 from avg" : "On track",    badgeType: avgLoad > 70 ? "amber" : "green" },
-    { label: "Grid Load",      value: `${avgStationLoad}%`,                                        badge: "Peak window",                                badgeType: "amber" },
-    { label: "Water Pressure", value: "3.1 bar",                                                   badge: burstActive ? "BURST" : "+0.1 bar",           badgeType: burstActive ? "red" : "green" },
-    { label: "Incidents",      value: alerts.length,                                               badge: `${criticalCount} critical`,                  badgeType: criticalCount > 0 ? "red" : "green" },
-    { label: "Uptime",         value: "99.2%",                                                     badge: "30-day avg",                                 badgeType: "green" },
+    { label: "Vehicles",       value: (2800 + Math.round(avgLoad * 3)).toLocaleString(),       badge: "LIVE",                                    badgeType: "green" },
+    { label: "Avg Speed",      value: `${Math.max(15, 60 - Math.round(avgLoad * 0.4))} km/h`, badge: avgLoad > 70 ? "-6 from avg" : "On track", badgeType: avgLoad > 70 ? "amber" : "green" },
+    { label: "Grid Load",      value: `${avgStationLoad}%`,                                    badge: "Peak window",                             badgeType: "amber" },
+    { label: "Water Pressure", value: "3.1 bar",                                               badge: burstActive ? "BURST" : "+0.1 bar",        badgeType: burstActive ? "red" : "green" },
+    { label: "Incidents",      value: alerts.length,                                           badge: `${criticalCount} critical`,               badgeType: criticalCount > 0 ? "red" : "green" },
+    { label: "Uptime",         value: "99.2%",                                                 badge: "30-day avg",                              badgeType: "green" },
   ];
 
   const SYSTEM_STATUSES = [
@@ -58,10 +51,7 @@ export default function OverviewPage({
         {STATS_OVERVIEW.map((s) => (
           <div
             key={s.label}
-            style={{
-              background: card, border: `0.5px solid ${bdr}`,
-              borderRadius: 10, padding: "12px 13px",
-            }}
+            style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, padding: "12px 13px" }}
           >
             <p style={{ fontSize: 10, color: sub, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 4 }}>
               {s.label}
@@ -76,44 +66,33 @@ export default function OverviewPage({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 12, flex: 1, minHeight: 0 }}>
 
         {/* Map card */}
-        <div
-          style={{
-            background: card, border: `0.5px solid ${bdr}`, borderRadius: 10,
-            display: "flex", flexDirection: "column", overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              borderBottom: `0.5px solid ${bdr}`, padding: "11px 14px", flexShrink: 0,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}
-          >
+        <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ borderBottom: `0.5px solid ${bdr}`, padding: "11px 14px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <p style={{ fontSize: 13, fontWeight: 500, color: txt }}>System overview map</p>
               <p style={{ fontSize: 11, color: sub, marginTop: 1 }}>All infrastructure layers · click nodes</p>
             </div>
             <button
               onClick={runAutoRoute}
-              style={{
-                fontSize: 11, fontFamily: fontBody, padding: "5px 10px", borderRadius: 6,
-                border: `0.5px solid ${bdr}`, background: inputBg, color: sub, cursor: "pointer",
-              }}
+              style={{ fontSize: 11, fontFamily: fontBody, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${bdr}`, background: inputBg, color: sub, cursor: "pointer" }}
             >
               Run Dijkstra's
             </button>
           </div>
 
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            <MapView nodes={graph.nodes} edges={graph.edges} path={path} onNodeClick={onNodeClick} />
+            {/* mode prop added — MapView uses it to decide road routing vs straight lines */}
+            <MapView
+              nodes={graph.nodes}
+              edges={graph.edges}
+              path={path}
+              onNodeClick={onNodeClick}
+              mode={mode}
+            />
           </div>
 
           {/* Legend */}
-          <div
-            style={{
-              borderTop: `0.5px solid ${bdr}`, padding: "6px 14px", flexShrink: 0,
-              display: "flex", gap: 16, flexWrap: "wrap",
-            }}
-          >
+          <div style={{ borderTop: `0.5px solid ${bdr}`, padding: "6px 14px", flexShrink: 0, display: "flex", gap: 16, flexWrap: "wrap" }}>
             {[
               { color: "#639922", label: "Clear" },
               { color: "#BA7517", label: "Moderate" },
@@ -139,21 +118,13 @@ export default function OverviewPage({
               {SYSTEM_STATUSES.map((s) => (
                 <div
                   key={s.label}
-                  style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "7px 9px", background: inputBg, borderRadius: 6,
-                  }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 9px", background: inputBg, borderRadius: 6 }}
                 >
                   <span style={{ fontSize: 12, fontWeight: 500, color: txt, display: "flex", alignItems: "center", gap: 7 }}>
                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, display: "inline-block" }} />
                     {s.label}
                   </span>
-                  <span
-                    style={{
-                      fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 500,
-                      background: s.bg, color: s.textColor,
-                    }}
-                  >
+                  <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 500, background: s.bg, color: s.textColor }}>
                     {s.status}
                   </span>
                 </div>
@@ -182,12 +153,7 @@ export default function OverviewPage({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, flexShrink: 0 }}>
         {/* Incident log */}
         <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, overflow: "hidden" }}>
-          <div
-            style={{
-              borderBottom: `0.5px solid ${bdr}`, padding: "11px 14px",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}
-          >
+          <div style={{ borderBottom: `0.5px solid ${bdr}`, padding: "11px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <p style={{ fontSize: 13, fontWeight: 500, color: txt }}>Incident log</p>
               <p style={{ fontSize: 11, color: sub, marginTop: 1 }}>{alerts.length} events</p>
@@ -209,19 +175,9 @@ export default function OverviewPage({
                       borderLeft: `2px solid ${a.load > 90 ? "#E24B4A" : "#BA7517"}`,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 6, height: 6, borderRadius: "50%", marginTop: 4, flexShrink: 0,
-                        background: a.load > 90 ? "#E24B4A" : "#BA7517",
-                      }}
-                    />
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 4, flexShrink: 0, background: a.load > 90 ? "#E24B4A" : "#BA7517" }} />
                     <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: 10, fontWeight: 600, textTransform: "uppercase",
-                          color: MODES.find((m) => m.id === a.mode)?.accent, letterSpacing: ".3px",
-                        }}
-                      >
+                      <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: MODES.find((m) => m.id === a.mode)?.accent, letterSpacing: ".3px" }}>
                         {a.mode}
                       </div>
                       <div style={{ fontSize: 11, color: sub, marginTop: 1 }}>{a.label}</div>

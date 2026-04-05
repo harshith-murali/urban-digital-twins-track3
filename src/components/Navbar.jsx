@@ -117,28 +117,7 @@ export default function Navbar({
           {time}
         </span>
 
-        {/* Notification bell */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setNotifOpen((v) => !v)}
-            style={{
-              width: 30, height: 30, borderRadius: 6,
-              border: `0.5px solid ${bdr}`, background: inputBg,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            }}
-          >
-            <Bell size={13} style={{ color: sub }} />
-            {alerts.length > 0 && (
-              <div
-                style={{
-                  position: "absolute", top: 4, right: 4,
-                  width: 7, height: 7, borderRadius: "50%",
-                  background: "#E24B4A", border: `1.5px solid ${card}`,
-                }}
-              />
-            )}
-          </button>
-        </div>
+        
 
         {/* Dark mode toggle */}
         <button

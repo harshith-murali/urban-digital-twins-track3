@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -9,6 +9,7 @@ import {
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { fetchRoadPath } from "@/lib/osrm";
 
 function StableView({ center, zoom }) {
   const map = useMap();
@@ -22,10 +23,28 @@ function StableView({ center, zoom }) {
   return null;
 }
 
-export default function MapView({ nodes, edges, path, onNodeClick }) {
-  // ── Cleanup ref: destroy Leaflet instance on unmount ─────────────────────
-  // Prevents "Map container is being reused by another instance" on hot-reload
+export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
   const mapRef = useRef(null);
+  const [roadCoords, setRoadCoords] = useState([]);
+
+  useEffect(() => {
+    if (path.length < 2) {
+      setRoadCoords([]);
+      return;
+    }
+
+    const waypoints = path
+      .map((id) => nodes.find((n) => n.id === id))
+      .filter(Boolean)
+      .map((n) => [n.lat, n.lng]);
+
+    if (mode === "traffic" || mode === "disaster") {
+      fetchRoadPath(waypoints).then(setRoadCoords);
+    } else {
+      setRoadCoords(waypoints);
+    }
+  }, [path, nodes, mode]);
+
   useEffect(() => {
     return () => {
       if (mapRef.current) {
@@ -35,21 +54,35 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
     };
   }, []);
 
-  const pathCoords = path
-    .map((id) => nodes.find((n) => n.id === id))
-    .filter(Boolean)
-    .map((n) => [n.lat, n.lng]);
-
   const getNodeColor = (node) => {
     if (node.isBlocked) return "#3b82f6";
-    if (node.load > 80)  return "#ef4444";
-    if (node.load > 60)  return "#f97316";
+    if (node.load > 80) return "#ef4444";
+    if (node.load > 60) return "#f97316";
     return "#22c55e";
   };
 
-  const getEdgeColor = (edge) => {
-    if (edge.isBlocked) return "#3b82f6";
-    return "#4b5563";
+  const getEdgeStyle = (edge) => {
+    if (mode === "energy") {
+      return {
+        color:     edge.isBlocked ? "#3b82f6" : "#facc15",
+        weight:    2,
+        opacity:   0.7,
+        dashArray: "6 4",
+      };
+    }
+    if (mode === "water") {
+      return {
+        color:     edge.isBlocked ? "#3b82f6" : "#38bdf8",
+        weight:    2,
+        opacity:   0.7,
+        dashArray: "2 3",
+      };
+    }
+    return {
+      color:   edge.isBlocked ? "#3b82f6" : "#4b5563",
+      weight:  edge.isBlocked ? 4 : 2,
+      opacity: edge.isBlocked ? 0.9 : 0.6,
+    };
   };
 
   return (
@@ -57,7 +90,6 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
       center={[12.97, 77.62]}
       zoom={11}
       style={{ height: "100%", width: "100%" }}
-      // ── Store the Leaflet map instance so we can remove() it on unmount ──
       ref={mapRef}
     >
       <StableView center={[12.97, 77.62]} zoom={11} />
@@ -67,38 +99,36 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
 
-      {/* Road edges ─────────────────────────────────────────────────────── */}
-      {/* Key only uses the edge's own blocked state — not the whole graph signature.
-          Changing one edge no longer remounts every other edge. */}
+      {/* Edges */}
       {edges.map((edge) => {
         const from = nodes.find((n) => n.id === edge.from);
         const to   = nodes.find((n) => n.id === edge.to);
         if (!from || !to) return null;
+        const style = getEdgeStyle(edge);
         return (
           <Polyline
-            key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}`}
+            key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
             positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-            color={getEdgeColor(edge)}
-            weight={edge.isBlocked ? 4 : 2}
-            opacity={edge.isBlocked ? 0.9 : 0.6}
+            pathOptions={{
+              color:   style.color,
+              weight:  style.weight,
+              opacity: style.opacity,
+              ...(style.dashArray ? { dashArray: style.dashArray } : {}),
+            }}
           />
         );
       })}
 
-      {/* Shortest / evacuation path ─────────────────────────────────────── */}
-      {pathCoords.length >= 2 && (
+      {/* Path overlay */}
+      {roadCoords.length >= 2 && (
         <Polyline
           key={`path-${path.join("-")}`}
-          positions={pathCoords}
-          color="#facc15"
-          weight={6}
-          opacity={1}
+          positions={roadCoords}
+          pathOptions={{ color: "#facc15", weight: 6, opacity: 1 }}
         />
       )}
 
-      {/* City nodes ──────────────────────────────────────────────────────── */}
-      {/* Key only contains THIS node's own state — not the whole graph signature.
-          One node flooding no longer remounts every other marker. */}
+      {/* City nodes */}
       {nodes.map((node) => {
         const color      = getNodeColor(node);
         const isOnPath   = path.includes(node.id);
@@ -115,7 +145,7 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
               fillOpacity: 0.9,
               weight:      isOnPath ? 3 : 1,
             }}
-            eventHandlers={{ click: () => onNodeClick(node.id) }}
+            eventHandlers={{ click: () => onNodeClick(node.id, mode) }}
           >
             <Popup>
               <strong>{node.label}</strong>
@@ -126,7 +156,7 @@ export default function MapView({ nodes, edges, path, onNodeClick }) {
               {isOnPath && (
                 <>
                   <br />
-                  <span style={{ color: "#ca8a04" }}>✓ On evacuation route</span>
+                  <span style={{ color: "#ca8a04" }}>✓ On route</span>
                 </>
               )}
             </Popup>

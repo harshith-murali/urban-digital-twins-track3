@@ -94,10 +94,10 @@ export default function RootLayout({ children }) {
   }, []);
 
   const healthData = [
-    { label: "Traffic",  val: avgLoad,                                       color: "#639922" },
-    { label: "Energy",   val: energy.failedStation ? 35 : energy.avgStationLoad, color: "#BA7517" },
-    { label: "Water",    val: water.burstActive    ? 40 : 80,                color: "#185FA5" },
-    { label: "Disaster", val: disaster.floodActive ? 25 : 85,                color: "#A32D2D" },
+    { label: "Traffic",  val: avgLoad,                                            color: "#639922" },
+    { label: "Energy",   val: energy.failedStation ? 35 : energy.avgStationLoad,  color: "#BA7517" },
+    { label: "Water",    val: water.burstActive     ? 40 : 80,                    color: "#185FA5" },
+    { label: "Disaster", val: disaster.floodActive  ? 25 : 85,                    color: "#A32D2D" },
   ];
 
   return (
@@ -129,13 +129,15 @@ export default function RootLayout({ children }) {
 
           <main style={{ flex: 1, padding: 16, display: "flex",
                          flexDirection: "column", gap: 12, overflow: "auto", minWidth: 0 }}>
-            {/* Pass shared state down via a Context or as props through a Provider */}
             <SharedStateContext.Provider value={{
               theme, mode, accent, currentMode, page, graph,
               routing, disaster, energy, water,
               alerts, avgLoad, criticalCount,
-              activeEdges: graph.edges.filter((e) => !e.isBlocked).length,
-              blockedCount: graph.nodes.filter((n) => n.isBlocked).length,
+              activeEdges:   graph.edges.filter((e) => !e.isBlocked).length,
+              blockedCount:  graph.nodes.filter((n) => n.isBlocked).length,
+              // needed by OverviewPage via buildPageProps
+              avgStationLoad: energy.avgStationLoad,
+              burstActive:    water.burstActive,
             }}>
               {children}
             </SharedStateContext.Provider>
