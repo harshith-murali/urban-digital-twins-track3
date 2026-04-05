@@ -6,6 +6,7 @@ import {
   CircleMarker,
   Polyline,
   Popup,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -23,7 +24,16 @@ function StableView({ center, zoom }) {
   return null;
 }
 
-export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }) {
+export default function MapView({
+  nodes,
+  edges,
+  path,
+  onNodeClick,
+  mode,
+  theme,
+  showEdges = true,
+  showNodeLabels = false,
+}) {
   const mapRef = useRef(null);
   const [roadCoords, setRoadCoords] = useState([]);
 
@@ -35,23 +45,24 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
       .map((n) => [n.lat, n.lng]);
   }, [path, nodes, mode]);
 
-  const displayedRoadCoords = path.length < 2 ? [] : (mode === "traffic" || mode === "disaster" ? roadCoords : straightRoadCoords);
+  const displayedRoadCoords =
+    path.length < 2
+      ? []
+      : mode === "traffic" || mode === "disaster"
+      ? roadCoords
+      : straightRoadCoords;
 
   useEffect(() => {
     if (path.length < 2 || (mode !== "traffic" && mode !== "disaster")) return;
-
     const waypoints = path
       .map((id) => nodes.find((n) => n.id === id))
       .filter(Boolean)
       .map((n) => [n.lat, n.lng]);
-
     let active = true;
     fetchRoadPath(waypoints).then((coords) => {
       if (active) setRoadCoords(coords);
     });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [path, nodes, mode]);
 
   useEffect(() => {
@@ -70,151 +81,110 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
     return "#22c55e";
   };
 
-  const getEdgeStyle = (edge) => {
-    if (mode === "energy") {
-      return {
-        color:     edge.isBlocked ? "#3b82f6" : "#facc15",
-        weight:    2,
-        opacity:   0.7,
-        dashArray: "6 4",
-      };
-    }
-    if (mode === "water") {
-      return {
-        color:     edge.isBlocked ? "#3b82f6" : "#38bdf8",
-        weight:    2,
-        opacity:   0.7,
-        dashArray: "2 3",
-      };
-    }
-    return {
-      color:   edge.isBlocked ? "#3b82f6" : "#4b5563",
-      weight:  edge.isBlocked ? 4 : 2,
-      opacity: edge.isBlocked ? 0.9 : 0.6,
-    };
+  const getEdgeStyle = (edge, isOnPath) => {
+    if (edge.isBlocked) return { color: "#3b82f6", weight: 2, opacity: 0.85 };
+    if (isOnPath)       return { color: "#facc15", weight: 3, opacity: 1 };
+    return               { color: "#1a1a1a",   weight: 1.5, opacity: 0.55 };
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: "inherit", overflow: "hidden" }}>
       <MapContainer
         center={[12.97, 77.62]}
         zoom={11}
         style={{ height: "100%", width: "100%" }}
         ref={mapRef}
       >
-      <StableView center={[12.97, 77.62]} zoom={11} />
+        <StableView center={[12.97, 77.62]} zoom={11} />
 
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      />
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
 
-      {/* Edges */}
-      {edges.map((edge) => {
-        const from = nodes.find((n) => n.id === edge.from);
-        const to   = nodes.find((n) => n.id === edge.to);
-        if (!from || !to) return null;
-        const style = getEdgeStyle(edge);
-        return (
-          <>
+        {/* Edges — hidden when showEdges=false (overview mode) */}
+        {showEdges && edges.map((edge) => {
+          const from = nodes.find((n) => n.id === edge.from);
+          const to   = nodes.find((n) => n.id === edge.to);
+          if (!from || !to) return null;
+
+          // Edge is "on path" if both its endpoints appear consecutively in path
+          const fromIdx = path.indexOf(edge.from);
+          const isOnPath = fromIdx !== -1 && path[fromIdx + 1] === edge.to;
+
+          const style = getEdgeStyle(edge, isOnPath);
+          return (
             <Polyline
-              key={`edge-outline-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
-              positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-              pathOptions={{ color: "#ffffff", weight: style.weight + 2, opacity: 0.35, ...(style.dashArray ? { dashArray: style.dashArray } : {}) }}
-            />
-            <Polyline
-              key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
+              key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${isOnPath ? 1 : 0}-${mode}`}
               positions={[[from.lat, from.lng], [to.lat, to.lng]]}
               pathOptions={{
                 color:   style.color,
                 weight:  style.weight,
                 opacity: style.opacity,
-                ...(style.dashArray ? { dashArray: style.dashArray } : {}),
               }}
             />
+          );
+        })}
+
+
+        {/* Path overlay */}
+        {displayedRoadCoords.length >= 2 && (
+          <>
+            <Polyline
+              positions={displayedRoadCoords}
+              pathOptions={{ color: "rgba(34,197,94,0.35)", weight: 10, opacity: 1 }}
+            />
+            <Polyline
+              positions={displayedRoadCoords}
+              pathOptions={{ color: "#22c55e", weight: 4, opacity: 1 }}
+            />
           </>
-        );
-      })}
+        )}
 
-      {/* Path overlay */}
-      {roadCoords.length >= 2 && (
-        <>
-          <Polyline
-            key={`path-outline-${path.join("-")}`}
-            positions={displayedRoadCoords}
-            pathOptions={{ color: "#ffffff", weight: 8, opacity: 0.3 }}
-          />
-          <Polyline
-            key={`path-${path.join("-")}`}
-            positions={displayedRoadCoords}
-            pathOptions={{ color: "#facc15", weight: 5, opacity: 1 }}
-          />
-        </>
-      )}
+        {/* City nodes */}
+        {nodes.map((node) => {
+          const color      = getNodeColor(node);
+          const isOnPath   = path.includes(node.id);
+          const loadBucket = node.load > 80 ? "hi" : node.load > 60 ? "mid" : "lo";
 
-      {/* City nodes */}
-      {nodes.map((node) => {
-        const color      = getNodeColor(node);
-        const isOnPath   = path.includes(node.id);
-        const loadBucket = node.load > 80 ? "hi" : node.load > 60 ? "mid" : "lo";
-
-        return (
-          <CircleMarker
-            key={`${node.id}-${node.isBlocked ? 1 : 0}-${loadBucket}-${isOnPath ? 1 : 0}`}
-            center={[node.lat, node.lng]}
-            radius={isOnPath ? 15 : 12}
-            pathOptions={{
-              color:       "#ffffff",
-              fillColor:   color,
-              fillOpacity: 0.95,
-              weight:      2,
-            }}
-            eventHandlers={{ click: () => onNodeClick(node.id, mode) }}
-          >
-            <Popup>
-              <strong>{node.label}</strong>
-              <br />
-              {node.isBlocked
-                ? "⚠️ FLOODED — route blocked"
-                : `Load: ${Math.round(node.load)}%`}
-              {isOnPath && (
-                <>
+          return (
+            <CircleMarker
+              key={`${node.id}-${node.isBlocked ? 1 : 0}-${loadBucket}-${isOnPath ? 1 : 0}`}
+              center={[node.lat, node.lng]}
+              radius={isOnPath ? 15 : 12}
+              pathOptions={{
+                color:       "#ffffff",
+                fillColor:   color,
+                fillOpacity: 0.95,
+                weight:      2,
+              }}
+              eventHandlers={{ click: () => onNodeClick(node.id, mode) }}
+            >
+              {showNodeLabels ? (
+                <Tooltip permanent direction="top" offset={[0, -14]} opacity={0.92}>
+                  <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                    {node.label?.split(" ").slice(0, 2).join(" ")}
+                  </span>
+                </Tooltip>
+              ) : (
+                <Popup>
+                  <strong>{node.label}</strong>
                   <br />
-                  <span style={{ color: "#ca8a04" }}>✓ On route</span>
-                </>
+                  {node.isBlocked
+                    ? "⚠️ FLOODED — route blocked"
+                    : `Load: ${Math.round(node.load)}%`}
+                  {isOnPath && (
+                    <>
+                      <br />
+                      <span style={{ color: "#ca8a04" }}>✓ On route</span>
+                    </>
+                  )}
+                </Popup>
               )}
-            </Popup>
-          </CircleMarker>
-        );
-      })}
-    </MapContainer>
-      <div style={{
-        position: "absolute",
-        left: 16,
-        bottom: 16,
-        padding: "10px 14px",
-        background: theme?.dark ? "rgba(18,22,34,0.92)" : "rgba(255,255,255,0.92)",
-        borderRadius: 999,
-        border: `1px solid ${theme?.bdr ?? "rgba(0,0,0,0.12)"}`,
-        display: "flex",
-        gap: 10,
-        alignItems: "center",
-        fontSize: 11,
-        color: theme?.txt,
-        boxShadow: "0 12px 30px rgba(0,0,0,0.14)",
-      }}>
-        {[
-          { color: "#639922", label: "Clear" },
-          { color: "#BA7517", label: "Moderate" },
-          { color: "#E24B4A", label: "Congested" },
-          { color: "#185FA5", label: "Optimal path" },
-        ].map((item) => (
-          <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6, color: theme?.sub, fontSize: 11 }}>
-            <span style={{ width: 12, height: 4, background: item.color, borderRadius: 999 }} />
-            {item.label}
-          </span>
-        ))}
-      </div>
+            </CircleMarker>
+          );
+        })}
+      </MapContainer>
     </div>
   );
 }
