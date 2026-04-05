@@ -128,8 +128,8 @@ export default function PricingPage() {
 
   const handleActivate = (tier) => {
     const tierKey = tier.name.toLowerCase();
-    if (activePlan === tierKey) return; // already active
-    setPlan(tierKey); // 🔑 instantly activate in context + localStorage
+    if (activePlan === tierKey) return;
+    setPlan(tierKey);
     setActivated(tier.name);
   };
 
@@ -172,14 +172,14 @@ export default function PricingPage() {
               key={tier.name}
               style={{
                 background: card,
-                border: 0.5px solid ${isActive ? tier.color + "88" : tier.badge ? tier.color + "55" : bdr},
+                border: `0.5px solid ${isActive ? tier.color + "88" : tier.badge ? tier.color + "55" : bdr}`,
                 borderRadius: 18,
                 padding: "28px 24px",
                 width: 280,
                 position: "relative",
                 boxShadow: isActive
-                  ? 0 16px 48px ${tier.color}28
-                  : tier.badge ? 0 16px 48px ${tier.color}18 : "none",
+                  ? `0 16px 48px ${tier.color}28`
+                  : tier.badge ? `0 16px 48px ${tier.color}18` : "none",
                 transition: "transform 0.2s, box-shadow 0.2s",
               }}
             >
@@ -206,7 +206,7 @@ export default function PricingPage() {
                 </div>
               )}
 
-              <div style={{ borderBottom: 0.5px solid ${bdr}, paddingBottom: 18, marginBottom: 18 }}>
+              <div style={{ borderBottom: `0.5px solid ${bdr}`, paddingBottom: 18, marginBottom: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: tier.color, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
                   {tier.name}
                 </div>
@@ -224,7 +224,7 @@ export default function PricingPage() {
                     <li key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: isExclusive ? txt : sub }}>
                       <span style={{
                         width: 15, height: 15, borderRadius: "50%",
-                        background: dark ? ${tier.color}22 : ${tier.color}15,
+                        background: dark ? `${tier.color}22` : `${tier.color}15`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 8, color: tier.color, flexShrink: 0, fontWeight: 700,
                       }}>✓</span>
@@ -232,7 +232,7 @@ export default function PricingPage() {
                       {isExclusive && (
                         <span style={{
                           marginLeft: "auto", fontSize: 9, fontWeight: 700, padding: "1px 6px",
-                          borderRadius: 10, background: ${tier.color}18, color: tier.color,
+                          borderRadius: 10, background: `${tier.color}18`, color: tier.color,
                           textTransform: "uppercase", letterSpacing: "0.3px",
                         }}>NEW</span>
                       )}
@@ -251,7 +251,7 @@ export default function PricingPage() {
                   background: isActive
                     ? (dark ? "rgba(99,153,34,0.18)" : "#EAF3DE")
                     : tier.badge ? tier.color : inputBg,
-                  border: 0.5px solid ${isActive ? "#639922" : tier.badge ? "transparent" : bdr},
+                  border: `0.5px solid ${isActive ? "#639922" : tier.badge ? "transparent" : bdr}`,
                   color: isActive ? "#639922" : tier.badge ? "#fff" : sub,
                   fontSize: 12, fontWeight: 600, fontFamily: fontBody,
                   transition: "all 0.15s",
@@ -273,7 +273,7 @@ export default function PricingPage() {
           display: "flex", alignItems: "center", gap: 6,
           padding: "4px 12px", borderRadius: 20,
           background: dark ? "rgba(255,255,255,0.04)" : "#f8f9fa",
-          border: 0.5px solid ${bdr},
+          border: `0.5px solid ${bdr}`,
           fontSize: 11, color: sub,
         }}>
           <span>🔒</span> Secure platform · Enterprise-grade infrastructure
@@ -312,13 +312,13 @@ export default function PricingPage() {
               key={v.label}
               style={{
                 background: card,
-                border: 0.5px solid ${bdr},
+                border: `0.5px solid ${bdr}`,
                 borderRadius: 14,
                 padding: "20px 18px",
-                borderTop: 3px solid ${v.color},
+                borderTop: `3px solid ${v.color}`,
                 transition: "box-shadow 0.2s",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 0 8px 24px ${v.color}18)}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = `0 8px 24px ${v.color}18`)}
               onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
             >
               <div style={{ fontSize: 26, marginBottom: 10 }}>{v.icon}</div>
@@ -336,8 +336,8 @@ export default function PricingPage() {
         </div>
 
         {/* Comparison table */}
-        <div style={{ background: card, border: 0.5px solid ${bdr}, borderRadius: 16, overflow: "hidden", marginBottom: 52 }}>
-          <div style={{ padding: "16px 20px", borderBottom: 0.5px solid ${bdr}, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 16, overflow: "hidden", marginBottom: 52 }}>
+          <div style={{ padding: "16px 20px", borderBottom: `0.5px solid ${bdr}`, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 16 }}>📊</span>
             <div>
               <p style={{ fontSize: 14, fontWeight: 600, color: txt, margin: 0 }}>Feature comparison</p>
@@ -347,7 +347,7 @@ export default function PricingPage() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ borderBottom: 0.5px solid ${bdr} }}>
+                <tr style={{ borderBottom: `0.5px solid ${bdr}` }}>
                   <th style={{ textAlign: "left", padding: "10px 20px", color: sub, fontWeight: 500, width: "50%" }}>Feature</th>
                   <th style={{ textAlign: "center", padding: "10px 16px", color: "#639922", fontWeight: 700 }}>UrbanTwins</th>
                   <th style={{ textAlign: "center", padding: "10px 16px", color: sub, fontWeight: 500 }}>Legacy GIS</th>
@@ -363,7 +363,7 @@ export default function PricingPage() {
                     <tr
                       key={row.feature}
                       style={{
-                        borderBottom: i < COMPARISONS.length - 1 ? 0.5px solid ${bdr} : "none",
+                        borderBottom: i < COMPARISONS.length - 1 ? `0.5px solid ${bdr}` : "none",
                         background: i % 2 === 0 ? "transparent" : (dark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.015)"),
                       }}
                     >
@@ -413,7 +413,7 @@ export default function PricingPage() {
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "5px 12px", borderRadius: 20,
                   background: dark ? "rgba(255,255,255,0.05)" : "#fff",
-                  border: 0.5px solid ${bdr},
+                  border: `0.5px solid ${bdr}`,
                   fontSize: 11, color: sub,
                 }}
               >
