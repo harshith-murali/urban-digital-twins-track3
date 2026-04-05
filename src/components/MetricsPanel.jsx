@@ -124,6 +124,7 @@ export default function MetricsPanel({
         label={node.label.split(" ")[0]}
         pct={node.isBlocked ? 100 : node.load}
         value={node.isBlocked ? "⛔" : `${Math.round(node.load)}%`}
+        extra={node.vehicles ? `${node.vehicles} vehicles` : undefined}
         color={
           node.isBlocked     ? "#378ADD" :
           node.load > 80     ? "#E24B4A" :
