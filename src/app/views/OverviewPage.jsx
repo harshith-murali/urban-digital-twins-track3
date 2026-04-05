@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import Badge from "@/components/ui/Badge";
@@ -18,6 +19,8 @@ export default function OverviewPage({
   stationLoads,
 }) {
   const { card, bdr, inputBg, sub, txt, fontBody, fontMono, dark } = theme;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const congestionSpeed = Math.max(15, 60 - Math.round(avgLoad * 0.4));
   const systemCritical = criticalCount > 0 || avgLoad > 80 || burstActive;
@@ -150,10 +153,10 @@ export default function OverviewPage({
             <p style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
               {s.label}
             </p>
-            <p style={{ fontSize: 26, fontWeight: 700, fontFamily: fontMono, color: txt, margin: 0 }}>{s.value}</p>
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: sub, fontFamily: fontMono }}>{s.detail}</p>
-            {renderSparkline(parseInt(s.value, 10) || 50, s.topBorder)}
-            <Badge label={s.badge} type={s.badgeType} theme={theme} />
+            <p style={{ fontSize: 26, fontWeight: 700, fontFamily: fontMono, color: txt, margin: 0 }}>{mounted ? s.value : "—"}</p>
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: sub, fontFamily: fontMono }}>{mounted ? s.detail : ""}</p>
+            {mounted && renderSparkline(parseInt(s.value, 10) || 50, s.topBorder)}
+            <Badge label={mounted ? s.badge : ""} type={s.badgeType} theme={theme} />
           </div>
         ))}
       </div>
@@ -174,9 +177,9 @@ export default function OverviewPage({
             <p style={{ fontSize: 10, color: sub, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 4 }}>
               {s.label}
             </p>
-            <p style={{ fontSize: 18, fontWeight: 600, fontFamily: fontMono, color: txt, margin: 0 }}>{s.value}</p>
-            <p style={{ margin: "6px 0 0", fontSize: 11, color: sub, fontFamily: fontMono }}>{s.detail}</p>
-            <Badge label={s.badge} type={s.badgeType} theme={theme} />
+            <p style={{ fontSize: 18, fontWeight: 600, fontFamily: fontMono, color: txt, margin: 0 }}>{mounted ? s.value : "—"}</p>
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: sub, fontFamily: fontMono }}>{mounted ? s.detail : ""}</p>
+            <Badge label={mounted ? s.badge : ""} type={s.badgeType} theme={theme} />
           </div>
         ))}
       </div>

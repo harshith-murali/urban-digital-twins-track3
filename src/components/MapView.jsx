@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -74,17 +74,21 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
     if (mode === "energy") {
       return {
         color:     edge.isBlocked ? "#3b82f6" : "#facc15",
-        weight:    2,
-        opacity:   0.7,
-        dashArray: "6 4",
+        weight:    edge.isBlocked ? 4 : 3,
+        opacity:   edge.isBlocked ? 1 : 0.95,
+        dashArray: edge.isBlocked ? null : "8 3",
+        outlineColor:  edge.isBlocked ? "rgba(59,130,246,0.35)" : "rgba(250,204,21,0.35)",
+        outlineWeight: edge.isBlocked ? 7 : 8,
       };
     }
     if (mode === "water") {
       return {
         color:     edge.isBlocked ? "#3b82f6" : "#38bdf8",
-        weight:    2,
-        opacity:   0.7,
+        weight:    3,
+        opacity:   0.9,
         dashArray: "2 3",
+        outlineColor:  edge.isBlocked ? "rgba(59,130,246,0.35)" : "rgba(56,189,248,0.35)",
+        outlineWeight: 8,
       };
     }
     return {
@@ -115,15 +119,16 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
         const to   = nodes.find((n) => n.id === edge.to);
         if (!from || !to) return null;
         const style = getEdgeStyle(edge);
+        const outlineColor  = style.outlineColor  ?? "#ffffff";
+        const outlineWeight = style.outlineWeight ?? (style.weight + 2);
+        const outlineOpacity = style.outlineColor ? 1 : 0.35;
         return (
-          <>
+          <Fragment key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}>
             <Polyline
-              key={`edge-outline-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
               positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-              pathOptions={{ color: "#ffffff", weight: style.weight + 2, opacity: 0.35, ...(style.dashArray ? { dashArray: style.dashArray } : {}) }}
+              pathOptions={{ color: outlineColor, weight: outlineWeight, opacity: outlineOpacity, ...(style.dashArray ? { dashArray: style.dashArray } : {}) }}
             />
             <Polyline
-              key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
               positions={[[from.lat, from.lng], [to.lat, to.lng]]}
               pathOptions={{
                 color:   style.color,
@@ -132,22 +137,22 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }
                 ...(style.dashArray ? { dashArray: style.dashArray } : {}),
               }}
             />
-          </>
+          </Fragment>
         );
       })}
 
       {/* Path overlay */}
-      {roadCoords.length >= 2 && (
+      {displayedRoadCoords.length >= 2 && (
         <>
           <Polyline
             key={`path-outline-${path.join("-")}`}
             positions={displayedRoadCoords}
-            pathOptions={{ color: "#ffffff", weight: 8, opacity: 0.3 }}
+            pathOptions={{ color: "rgba(34,197,94,0.35)", weight: 10, opacity: 1 }}
           />
           <Polyline
             key={`path-${path.join("-")}`}
             positions={displayedRoadCoords}
-            pathOptions={{ color: "#facc15", weight: 5, opacity: 1 }}
+            pathOptions={{ color: "#22c55e", weight: 4, opacity: 1 }}
           />
         </>
       )}
