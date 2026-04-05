@@ -21,9 +21,9 @@ export default function Badge({ label, type = "neutral", theme }) {
   return (
     <span
       style={{
-        fontSize: 10,
-        padding: "2px 7px",
-        borderRadius: 4,
+        fontSize: 12,
+        padding: "3px 9px",
+        borderRadius: 5,
         fontWeight: 600,
         background: c.bg(dark),
         color: c.color(dark),

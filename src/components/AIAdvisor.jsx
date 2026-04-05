@@ -15,7 +15,9 @@ export default function AIAdvisor({
   graph,
   compact = false,
 }) {
-  const [advice, setAdvice] = useState("");
+  const [advice, setAdvice] = useState(
+    "Prioritise congestion relief at the busiest intersections.\nDeploy dynamic traffic messaging for peak corridors.\nMonitor critical nodes and stage response teams early."
+  );
   const [loading, setLoading] = useState(false);
 
   const { card, bdr, inputBg, sub, txt, fontBody, fontMono, dark } = theme;
@@ -73,16 +75,29 @@ export default function AIAdvisor({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <Sparkles size={13} style={{ color: accent }} />
-          <p
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: txt,
-              fontFamily: fontBody,
-            }}
-          >
-            AI Advisor
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <p
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: txt,
+                fontFamily: fontBody,
+              }}
+            >
+              AI Advisor
+            </p>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: loading ? accent : "rgba(147,196,89,0.35)",
+                boxShadow: loading ? `0 0 0 6px ${accent}22` : "none",
+                transition: "all 0.3s ease",
+              }}
+              className={loading ? "animate-pulse" : ""}
+            />
+          </div>
         </div>
         <motion.button
           whileTap={{ scale: 0.95 }}

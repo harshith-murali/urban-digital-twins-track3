@@ -117,20 +117,56 @@ export default function Navbar({
           {time}
         </span>
 
-        
+        <button
+          title="View alerts"
+          style={{
+            position: "relative",
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            border: `0.5px solid ${bdr}`,
+            background: inputBg,
+            color: sub,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}
+          onClick={() => setNotifOpen((open) => !open)}
+        >
+          <Bell size={16} />
+          {alerts.length > 0 && (
+            <span style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#E24B4A",
+              boxShadow: "0 0 0 3px rgba(226,75,74,0.16)",
+            }} />
+          )}
+        </button>
 
         {/* Dark mode toggle */}
         <button
           onClick={() => setDark(!dark)}
+          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
           style={{
-            border: `0.5px solid ${bdr}`, background: inputBg, color: sub,
-            padding: "5px 10px", borderRadius: 6, fontSize: 12,
-            fontFamily: fontBody, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 5,
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            border: `0.5px solid ${bdr}`,
+            background: inputBg,
+            color: sub,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
           }}
         >
-          {dark ? <Sun size={12} /> : <Moon size={12} />}
-          {dark ? "Light" : "Dark"}
+          {dark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
         <UserButton />

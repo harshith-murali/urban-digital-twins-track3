@@ -19,16 +19,72 @@ export default function OverviewPage({
 }) {
   const { card, bdr, inputBg, sub, txt, fontBody, fontMono, dark } = theme;
 
+  const congestionSpeed = Math.max(15, 60 - Math.round(avgLoad * 0.4));
+  const systemCritical = criticalCount > 0 || avgLoad > 80 || burstActive;
+  const statusBarColor = systemCritical ? "#E24B4A" : "#639922";
+  const statusBarLabel = systemCritical ? "System alert: critical conditions detected" : "All systems nominal";
+
   const STATS_OVERVIEW = [
-    { label: "Vehicles",       value: (2800 + Math.round(avgLoad * 3)).toLocaleString(),       badge: "LIVE",                                    badgeType: "green" },
-    { label: "Avg Speed",      value: `${Math.max(15, 60 - Math.round(avgLoad * 0.4))} km/h`, badge: avgLoad > 70 ? "-6 from avg" : "On track", badgeType: avgLoad > 70 ? "amber" : "green" },
-    { label: "Grid Load",      value: `${avgStationLoad}%`,                                    badge: "Peak window",                             badgeType: "amber" },
-    { label: "Water Pressure", value: "3.1 bar",                                               badge: burstActive ? "BURST" : "+0.1 bar",        badgeType: burstActive ? "red" : "green" },
-    { label: "Incidents",      value: alerts.length,                                           badge: `${criticalCount} critical`,               badgeType: criticalCount > 0 ? "red" : "green" },
-    { label: "Uptime",         value: "99.2%",                                                 badge: "30-day avg",                              badgeType: "green" },
+    {
+      label: "Congestion",
+      value: `${Math.round(avgLoad)}%`,
+      detail: `${congestionSpeed} km/h`,
+      badge: avgLoad > 75 ? "Critical" : avgLoad > 60 ? "Warning" : "Normal",
+      badgeType: avgLoad > 75 ? "red" : avgLoad > 60 ? "amber" : "green",
+      topBorder: avgLoad > 75 ? "#E24B4A" : avgLoad > 60 ? "#BA7517" : "#639922",
+      span: 5,
+    },
+    {
+      label: "Traffic volume",
+      value: (2800 + Math.round(avgLoad * 3)).toLocaleString(),
+      detail: "Live",
+      badge: "LIVE",
+      badgeType: "green",
+      topBorder: "#639922",
+      span: 3,
+    },
+    {
+      label: "Grid Load",
+      value: `${avgStationLoad}%`,
+      detail: "Peak window",
+      badge: avgStationLoad > 75 ? "High load" : "Stable",
+      badgeType: avgStationLoad > 75 ? "amber" : "green",
+      topBorder: "#BA7517",
+      span: 2,
+    },
+    {
+      label: "Water Pressure",
+      value: "3.1 bar",
+      detail: burstActive ? "Burst active" : "+0.1 bar",
+      badge: burstActive ? "BURST" : "+0.1 bar",
+      badgeType: burstActive ? "red" : "green",
+      topBorder: burstActive ? "#E24B4A" : "#639922",
+      span: 2,
+    },
+    {
+      label: "Incidents",
+      value: alerts.length,
+      detail: `${criticalCount} critical`,
+      badge: "Events",
+      badgeType: criticalCount > 0 ? "red" : "green",
+      topBorder: criticalCount > 0 ? "#E24B4A" : "#639922",
+      span: 3,
+    },
+    {
+      label: "Uptime",
+      value: "99.2%",
+      detail: "30-day avg",
+      badge: "Stable",
+      badgeType: "green",
+      topBorder: "#639922",
+      span: 3,
+    },
   ];
 
-  const SYSTEM_STATUSES = [
+  const topStats = STATS_OVERVIEW.slice(0, 4);
+  const bottomStats = STATS_OVERVIEW.slice(4);
+
+  const systemLegend = [
     { label: "Traffic",  status: "Critical", color: "#E24B4A", bg: dark ? "rgba(163,45,45,0.10)"  : "#FCEBEB", textColor: "#A32D2D" },
     { label: "Energy",   status: "Warning",  color: "#BA7517", bg: dark ? "rgba(186,117,23,0.10)" : "#FAEEDA", textColor: "#633806" },
     { label: "Water",    status: "Critical", color: "#E24B4A", bg: dark ? "rgba(163,45,45,0.10)"  : "#FCEBEB", textColor: "#A32D2D" },
@@ -44,66 +100,138 @@ export default function OverviewPage({
     { val: "Mod",      lbl: "UV Index" },
   ];
 
+  const trendPoints = (base) => Array.from({ length: 7 }, (_, idx) => {
+    const offset = (idx - 3) * 0.035;
+    return Math.max(0, Math.min(1, base / 100 + offset + Math.sin(idx * 1.1) * 0.02));
+  });
+
+  const renderSparkline = (base, color) => {
+    const points = trendPoints(base);
+    const path = points
+      .map((value, idx) => `${(idx * 16) + 2},${24 - value * 16}`)
+      .join(" ");
+    return (
+      <svg width="128" height="28" viewBox="0 0 128 28" style={{ display: "block", marginTop: 10 }}>
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={path}
+        />
+      </svg>
+    );
+  };
+
   return (
     <>
-      {/* 6-column stat grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 10, flexShrink: 0 }}>
-        {STATS_OVERVIEW.map((s) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ flex: 1, height: 3, borderRadius: 999, background: statusBarColor, boxShadow: `0 0 12px ${statusBarColor}20` }} />
+        <div style={{ fontSize: 11, color: systemCritical ? "#E24B4A" : "#639922", fontFamily: fontBody, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".08em" }}>
+          {statusBarLabel}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: 10, flexShrink: 0 }}>
+        {topStats.map((s, index) => (
           <div
             key={s.label}
-            style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, padding: "12px 13px" }}
+            style={{
+              background: card,
+              border: `0.5px solid ${bdr}`,
+              borderRadius: 12,
+              padding: "15px 16px",
+              gridColumn: `span ${s.span}`,
+              borderTop: `4px solid ${s.topBorder}`,
+              boxShadow: index === 0 ? `0 12px 28px ${s.topBorder}15` : undefined,
+            }}
+          >
+            <p style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
+              {s.label}
+            </p>
+            <p style={{ fontSize: 26, fontWeight: 700, fontFamily: fontMono, color: txt, margin: 0 }}>{s.value}</p>
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: sub, fontFamily: fontMono }}>{s.detail}</p>
+            {renderSparkline(parseInt(s.value, 10) || 50, s.topBorder)}
+            <Badge label={s.badge} type={s.badgeType} theme={theme} />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: 10, marginTop: 10 }}>
+        {bottomStats.map((s) => (
+          <div
+            key={s.label}
+            style={{
+              background: card,
+              border: `0.5px solid ${bdr}`,
+              borderRadius: 10,
+              padding: "12px 13px",
+              gridColumn: `span ${s.span}`,
+              borderTop: `3px solid ${s.topBorder}`,
+            }}
           >
             <p style={{ fontSize: 10, color: sub, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 4 }}>
               {s.label}
             </p>
-            <p style={{ fontSize: 19, fontWeight: 500, fontFamily: fontMono, color: txt }}>{s.value}</p>
+            <p style={{ fontSize: 18, fontWeight: 600, fontFamily: fontMono, color: txt, margin: 0 }}>{s.value}</p>
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: sub, fontFamily: fontMono }}>{s.detail}</p>
             <Badge label={s.badge} type={s.badgeType} theme={theme} />
           </div>
         ))}
       </div>
 
       {/* Map + System Status + Environment */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 12, flex: 1, minHeight: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 12, flex: 1, minHeight: 0, background: inputBg, border: `0.5px solid ${bdr}`, borderRadius: 14, padding: 12 }}>
 
         {/* Map card */}
-        <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ borderBottom: `0.5px solid ${bdr}`, padding: "11px 14px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+          <div style={{ borderBottom: `0.5px solid ${bdr}`, padding: "14px 16px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 500, color: txt }}>System overview map</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: txt }}>System overview map</p>
               <p style={{ fontSize: 11, color: sub, marginTop: 1 }}>All infrastructure layers · click nodes</p>
             </div>
             <button
               onClick={runAutoRoute}
-              style={{ fontSize: 11, fontFamily: fontBody, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${bdr}`, background: inputBg, color: sub, cursor: "pointer" }}
+              style={{ fontSize: 11, fontFamily: fontBody, padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${bdr}`, background: inputBg, color: sub, cursor: "pointer" }}
             >
               Run Dijkstra's
             </button>
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            {/* mode prop added — MapView uses it to decide road routing vs straight lines */}
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
             <MapView
               nodes={graph.nodes}
               edges={graph.edges}
               path={path}
               onNodeClick={onNodeClick}
               mode={mode}
+              theme={theme}
             />
-          </div>
-
-          {/* Legend */}
-          <div style={{ borderTop: `0.5px solid ${bdr}`, padding: "6px 14px", flexShrink: 0, display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {[
-              { color: "#639922", label: "Clear" },
-              { color: "#BA7517", label: "Moderate" },
-              { color: "#E24B4A", label: "Congested" },
-              { color: "#185FA5", label: "Optimal path" },
-            ].map((l) => (
-              <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: sub }}>
-                <span style={{ width: 14, height: 3, background: l.color, display: "inline-block", borderRadius: 2 }} />
-                {l.label}
-              </span>
-            ))}
+            {criticalCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  position: "absolute",
+                  left: 16,
+                  bottom: 16,
+                  padding: "10px 14px",
+                  borderRadius: 999,
+                  background: dark ? "rgba(16,20,35,0.95)" : "rgba(255,255,255,0.92)",
+                  border: `1px solid ${bdr}`,
+                  boxShadow: "0 18px 36px rgba(0,0,0,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#E24B4A", boxShadow: "0 0 0 6px rgba(226,75,74,0.12)" }} />
+                <div style={{ color: txt, fontSize: 12, fontWeight: 600, fontFamily: fontBody }}>
+                  {criticalCount} Issue{criticalCount === 1 ? "" : "s"} detected
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
 

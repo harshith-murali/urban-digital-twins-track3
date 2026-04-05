@@ -23,7 +23,7 @@ function StableView({ center, zoom }) {
   return null;
 }
 
-export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
+export default function MapView({ nodes, edges, path, onNodeClick, mode, theme }) {
   const mapRef = useRef(null);
   const [roadCoords, setRoadCoords] = useState([]);
 
@@ -86,12 +86,13 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
   };
 
   return (
-    <MapContainer
-      center={[12.97, 77.62]}
-      zoom={11}
-      style={{ height: "100%", width: "100%" }}
-      ref={mapRef}
-    >
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <MapContainer
+        center={[12.97, 77.62]}
+        zoom={11}
+        style={{ height: "100%", width: "100%" }}
+        ref={mapRef}
+      >
       <StableView center={[12.97, 77.62]} zoom={11} />
 
       <TileLayer
@@ -106,26 +107,40 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
         if (!from || !to) return null;
         const style = getEdgeStyle(edge);
         return (
-          <Polyline
-            key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
-            positions={[[from.lat, from.lng], [to.lat, to.lng]]}
-            pathOptions={{
-              color:   style.color,
-              weight:  style.weight,
-              opacity: style.opacity,
-              ...(style.dashArray ? { dashArray: style.dashArray } : {}),
-            }}
-          />
+          <>
+            <Polyline
+              key={`edge-outline-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
+              positions={[[from.lat, from.lng], [to.lat, to.lng]]}
+              pathOptions={{ color: "#ffffff", weight: style.weight + 2, opacity: 0.35, ...(style.dashArray ? { dashArray: style.dashArray } : {}) }}
+            />
+            <Polyline
+              key={`edge-${edge.from}-${edge.to}-${edge.isBlocked ? 1 : 0}-${mode}`}
+              positions={[[from.lat, from.lng], [to.lat, to.lng]]}
+              pathOptions={{
+                color:   style.color,
+                weight:  style.weight,
+                opacity: style.opacity,
+                ...(style.dashArray ? { dashArray: style.dashArray } : {}),
+              }}
+            />
+          </>
         );
       })}
 
       {/* Path overlay */}
       {roadCoords.length >= 2 && (
-        <Polyline
-          key={`path-${path.join("-")}`}
-          positions={roadCoords}
-          pathOptions={{ color: "#facc15", weight: 6, opacity: 1 }}
-        />
+        <>
+          <Polyline
+            key={`path-outline-${path.join("-")}`}
+            positions={roadCoords}
+            pathOptions={{ color: "#ffffff", weight: 8, opacity: 0.3 }}
+          />
+          <Polyline
+            key={`path-${path.join("-")}`}
+            positions={roadCoords}
+            pathOptions={{ color: "#facc15", weight: 5, opacity: 1 }}
+          />
+        </>
       )}
 
       {/* City nodes */}
@@ -140,10 +155,10 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
             center={[node.lat, node.lng]}
             radius={isOnPath ? 15 : 12}
             pathOptions={{
-              color:       isOnPath ? "#facc15" : color,
+              color:       "#ffffff",
               fillColor:   color,
-              fillOpacity: 0.9,
-              weight:      isOnPath ? 3 : 1,
+              fillOpacity: 0.95,
+              weight:      2,
             }}
             eventHandlers={{ click: () => onNodeClick(node.id, mode) }}
           >
@@ -164,5 +179,33 @@ export default function MapView({ nodes, edges, path, onNodeClick, mode }) {
         );
       })}
     </MapContainer>
+      <div style={{
+        position: "absolute",
+        left: 16,
+        bottom: 16,
+        padding: "10px 14px",
+        background: theme?.dark ? "rgba(18,22,34,0.92)" : "rgba(255,255,255,0.92)",
+        borderRadius: 999,
+        border: `1px solid ${theme?.bdr ?? "rgba(0,0,0,0.12)"}`,
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        fontSize: 11,
+        color: theme?.txt,
+        boxShadow: "0 12px 30px rgba(0,0,0,0.14)",
+      }}>
+        {[
+          { color: "#639922", label: "Clear" },
+          { color: "#BA7517", label: "Moderate" },
+          { color: "#E24B4A", label: "Congested" },
+          { color: "#185FA5", label: "Optimal path" },
+        ].map((item) => (
+          <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6, color: theme?.sub, fontSize: 11 }}>
+            <span style={{ width: 12, height: 4, background: item.color, borderRadius: 999 }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
